@@ -1,8 +1,17 @@
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\CompeticionCodeCupApplication.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\config\SecurityConfig.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\controller\EquipoController.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\controller\PerfilJugadorController.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\controller\SolicitudController.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\CrearSolicitudDTO.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\HistorialEquipoDTO.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\PartidoResumenDTO.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\PerfilJugadorDTO.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\RechazoRequestDTO.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\ResumenEstadisticasDTO.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\SolicitudDTO.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\TarjetasResumenDTO.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\dto\TituloDTO.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\exception\GlobalExceptionHandler.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\model\Campeonato.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\model\Equipo.java
@@ -28,4 +37,5 @@ C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\term
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\repository\TarjetaRepository.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\repository\TituloRepository.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\repository\TorneoRepository.java
+C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\service\PerfilJugadorService.java
 C:\Users\Estudiante\Downloads\parcialmicro\CompeticionCodeCup\src\main\java\terminus\co\edu\ufps\competicion\service\SolicitudService.java

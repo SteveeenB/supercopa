@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import terminus.co.edu.ufps.competicion.dto.RechazoRequestDTO;
+import terminus.co.edu.ufps.competicion.dto.CrearSolicitudDTO;
 import terminus.co.edu.ufps.competicion.dto.SolicitudDTO;
 import terminus.co.edu.ufps.competicion.service.SolicitudService;
 
@@ -19,6 +20,25 @@ import java.util.UUID;
 public class SolicitudController {
 
     private final SolicitudService solicitudService;
+
+    /**
+     * POST /api/supercopa/solicitudes
+     * Un jugador solicita unirse a un equipo.
+     */
+    @PostMapping
+    @PreAuthorize("hasRole('JUGADOR')")
+    public ResponseEntity<String> crearSolicitud(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody CrearSolicitudDTO request) {
+        
+        String cedula = jwt.getClaimAsString("cedula");
+        String nombre = jwt.getClaimAsString("nombre");
+        String correo = jwt.getClaimAsString("email");
+
+        solicitudService.crearSolicitud(cedula, nombre, correo, request.getEquipoId(), request.getCampeonatoId());
+        
+        return ResponseEntity.ok("Solicitud enviada correctamente al delegado del equipo.");
+    }
 
     /**
      * GET /api/supercopa/solicitudes

@@ -8,6 +8,8 @@ import java.util.UUID;
 
 public interface SolicitudEquipoRepository extends JpaRepository<SolicitudEquipo, UUID> {
 
+    List<SolicitudEquipo> findAllByCedula(String cedula);
+
     List<SolicitudEquipo> findByEquipoIdInAndEstado(List<UUID> equipoIds, EstadoSolicitud estado);
 
     List<SolicitudEquipo> findByEquipoIdIn(List<UUID> equipoIds);

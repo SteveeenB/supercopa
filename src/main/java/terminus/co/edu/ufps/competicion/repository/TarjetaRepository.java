@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface TarjetaRepository extends JpaRepository<Tarjeta, UUID> {
     List<Tarjeta> findByJugadorCedula(String cedula);
     long countByJugadorCedulaAndTipo(String cedula, TipoTarjeta tipo);
+    List<Tarjeta> findByPartidoIdAndJugadorCedula(UUID partidoId, String cedula);
 }

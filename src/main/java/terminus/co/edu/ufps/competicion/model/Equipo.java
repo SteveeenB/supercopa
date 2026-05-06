@@ -19,6 +19,6 @@ public class Equipo {
     @Column(nullable = false, length = 150)
     private String nombre;
 
-    @Column(name = "delegado_cedula", length = 20)
+    @Column(name = "delegado_cedula", length = 20, unique = true)
     private String delegadoCedula;
 }
