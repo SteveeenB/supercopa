@@ -11,7 +11,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Entity
 @Table(name = "jugador_equipo",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"cedula", "campeonato_id"}))
+    uniqueConstraints = @UniqueConstraint(columnNames = {"cedula", "torneo_id"}))
 public class JugadorEquipo {
 
     @Id
@@ -26,8 +26,8 @@ public class JugadorEquipo {
     private Equipo equipo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "campeonato_id", nullable = false)
-    private Campeonato campeonato;
+    @JoinColumn(name = "torneo_id", nullable = false)
+    private Torneo torneo;
 
     @Column(name = "fecha_inicio", nullable = false)
     private LocalDate fechaInicio;

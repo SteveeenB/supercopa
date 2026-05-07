@@ -31,8 +31,8 @@ public class SolicitudEquipo {
     private Equipo equipo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "campeonato_id", nullable = false)
-    private Campeonato campeonato;
+    @JoinColumn(name = "torneo_id", nullable = false)
+    private Torneo torneo;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

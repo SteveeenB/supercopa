@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import terminus.co.edu.ufps.competicion.dto.RechazoRequestDTO;
 import terminus.co.edu.ufps.competicion.dto.SolicitudDTO;
+import terminus.co.edu.ufps.competicion.dto.SolicitudRequestDTO;
 import terminus.co.edu.ufps.competicion.service.SolicitudService;
 
 import java.util.List;
@@ -19,6 +20,33 @@ import java.util.UUID;
 public class SolicitudController {
 
     private final SolicitudService solicitudService;
+
+    /**
+     * POST /api/supercopa/solicitudes
+     * Jugador solicita ingreso a un equipo para un torneo.
+     */
+    @PostMapping
+    @PreAuthorize("hasRole('JUGADOR')")
+    public ResponseEntity<SolicitudDTO> crear(
+            @RequestBody SolicitudRequestDTO req,
+            @AuthenticationPrincipal Jwt jwt) {
+        String cedula = jwt.getClaimAsString("cedula");
+        String nombre = jwt.getClaimAsString("nombre");
+        String correo = jwt.getClaimAsString("email");
+        return ResponseEntity.ok(solicitudService.crear(cedula, nombre, correo, req.getEquipoId(), req.getTorneoId()));
+    }
+
+    /**
+     * GET /api/supercopa/solicitudes/mis-solicitudes
+     * Jugador ve sus propias solicitudes.
+     */
+    @GetMapping("/mis-solicitudes")
+    @PreAuthorize("hasRole('JUGADOR')")
+    public ResponseEntity<List<SolicitudDTO>> misSolicitudes(
+            @AuthenticationPrincipal Jwt jwt) {
+        String cedula = jwt.getClaimAsString("cedula");
+        return ResponseEntity.ok(solicitudService.listarSolicitudesJugador(cedula));
+    }
 
     /**
      * GET /api/supercopa/solicitudes
@@ -47,7 +75,7 @@ public class SolicitudController {
     /**
      * POST /api/supercopa/solicitudes/{id}/aprobar
      * Delegado aprueba una solicitud:
-     *   - Crea la membresía jugador_equipo para ese campeonato
+    *   - Crea la membresia jugador_equipo para ese torneo
      *   - Marca la solicitud como APROBADA
      */
     @PostMapping("/{id}/aprobar")

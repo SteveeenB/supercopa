@@ -11,10 +11,10 @@ public interface TituloRepository extends JpaRepository<Titulo, UUID> {
     /**
      * Busca los títulos de un jugador basado en su historial de equipos.
      * Un jugador tiene un título si pertenecía al equipo (JugadorEquipo) 
-     * en el campeonato del título.
+    * en el torneo del titulo.
      */
     @Query("SELECT t FROM Titulo t " +
-           "JOIN JugadorEquipo je ON t.equipo.id = je.equipo.id AND t.torneo.id = je.campeonato.id " +
+           "JOIN JugadorEquipo je ON t.equipo.id = je.equipo.id AND t.torneo.id = je.torneo.id " +
            "WHERE je.cedula = :cedula")
     List<Titulo> findByJugadorCedula(String cedula);
 }

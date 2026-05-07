@@ -15,8 +15,8 @@ public class SolicitudDTO {
     private String correo;
     private UUID equipoId;
     private String equipoNombre;
-    private UUID campeonatoId;
-    private String campeonatoNombre;
+    private UUID torneoId;
+    private String torneoNombre;
     private String estado;
     private LocalDateTime fechaSolicitud;
     private LocalDateTime fechaResolucion;
