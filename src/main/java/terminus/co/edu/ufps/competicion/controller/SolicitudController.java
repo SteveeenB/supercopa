@@ -21,10 +21,6 @@ public class SolicitudController {
 
     private final SolicitudService solicitudService;
 
-    /**
-     * POST /api/supercopa/solicitudes
-     * Jugador solicita ingreso a un equipo para un torneo.
-     */
     @PostMapping
     @PreAuthorize("hasRole('JUGADOR')")
     public ResponseEntity<SolicitudDTO> crear(
@@ -33,71 +29,46 @@ public class SolicitudController {
         String cedula = jwt.getClaimAsString("cedula");
         String nombre = jwt.getClaimAsString("nombre");
         String correo = jwt.getClaimAsString("email");
-        return ResponseEntity.ok(solicitudService.crear(cedula, nombre, correo, req.getEquipoId(), req.getTorneoId()));
+        return ResponseEntity.ok(solicitudService.crear(
+                cedula,
+                nombre,
+                correo,
+                req.getEquipoTorneoId(),
+                req.getAlturaCm(),
+                req.getPiernaHabil(),
+                req.getPosicion()));
     }
 
-    /**
-     * GET /api/supercopa/solicitudes/mis-solicitudes
-     * Jugador ve sus propias solicitudes.
-     */
     @GetMapping("/mis-solicitudes")
     @PreAuthorize("hasRole('JUGADOR')")
-    public ResponseEntity<List<SolicitudDTO>> misSolicitudes(
-            @AuthenticationPrincipal Jwt jwt) {
-        String cedula = jwt.getClaimAsString("cedula");
-        return ResponseEntity.ok(solicitudService.listarSolicitudesJugador(cedula));
+    public ResponseEntity<List<SolicitudDTO>> misSolicitudes(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(solicitudService.listarSolicitudesJugador(jwt.getClaimAsString("cedula")));
     }
 
-    /**
-     * GET /api/supercopa/solicitudes
-     * Delegado ve todas las solicitudes de sus equipos.
-     */
     @GetMapping
     @PreAuthorize("hasRole('DELEGADO')")
-    public ResponseEntity<List<SolicitudDTO>> listarSolicitudes(
-            @AuthenticationPrincipal Jwt jwt) {
-        String cedulaDelegado = jwt.getClaimAsString("cedula");
-        return ResponseEntity.ok(solicitudService.listarSolicitudesDelegado(cedulaDelegado));
+    public ResponseEntity<List<SolicitudDTO>> listarSolicitudes(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(solicitudService.listarSolicitudesDelegado(jwt.getClaimAsString("cedula")));
     }
 
-    /**
-     * GET /api/supercopa/solicitudes/pendientes
-     * Delegado ve solo las solicitudes pendientes de sus equipos.
-     */
     @GetMapping("/pendientes")
     @PreAuthorize("hasRole('DELEGADO')")
-    public ResponseEntity<List<SolicitudDTO>> listarPendientes(
-            @AuthenticationPrincipal Jwt jwt) {
-        String cedulaDelegado = jwt.getClaimAsString("cedula");
-        return ResponseEntity.ok(solicitudService.listarPendientesDelegado(cedulaDelegado));
+    public ResponseEntity<List<SolicitudDTO>> listarPendientes(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(solicitudService.listarPendientesDelegado(jwt.getClaimAsString("cedula")));
     }
 
-    /**
-     * POST /api/supercopa/solicitudes/{id}/aprobar
-     * Delegado aprueba una solicitud:
-    *   - Crea la membresia jugador_equipo para ese torneo
-     *   - Marca la solicitud como APROBADA
-     */
     @PostMapping("/{id}/aprobar")
     @PreAuthorize("hasRole('DELEGADO')")
-    public ResponseEntity<SolicitudDTO> aprobar(
-            @PathVariable UUID id,
-            @AuthenticationPrincipal Jwt jwt) {
-        String cedulaDelegado = jwt.getClaimAsString("cedula");
-        return ResponseEntity.ok(solicitudService.aprobar(id, cedulaDelegado));
+    public ResponseEntity<SolicitudDTO> aprobar(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(solicitudService.aprobar(id, jwt.getClaimAsString("cedula")));
     }
 
-    /**
-     * POST /api/supercopa/solicitudes/{id}/rechazar
-     * Delegado rechaza una solicitud con un motivo.
-     */
     @PostMapping("/{id}/rechazar")
     @PreAuthorize("hasRole('DELEGADO')")
     public ResponseEntity<SolicitudDTO> rechazar(
             @PathVariable UUID id,
             @RequestBody RechazoRequestDTO req,
             @AuthenticationPrincipal Jwt jwt) {
-        String cedulaDelegado = jwt.getClaimAsString("cedula");
-        return ResponseEntity.ok(solicitudService.rechazar(id, req.getMotivo(), cedulaDelegado));
+        return ResponseEntity.ok(solicitudService.rechazar(id, req.getMotivo(), jwt.getClaimAsString("cedula")));
     }
 }

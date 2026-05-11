@@ -7,14 +7,13 @@ import java.util.List;
 import java.util.UUID;
 
 public interface TituloRepository extends JpaRepository<Titulo, UUID> {
-    
+
     /**
-     * Busca los títulos de un jugador basado en su historial de equipos.
-     * Un jugador tiene un título si pertenecía al equipo (JugadorEquipo) 
-    * en el torneo del titulo.
+     * Títulos de un jugador: hay título si la membresía (JugadorEquipo) coincide
+     * con el equipo_torneo premiado.
      */
     @Query("SELECT t FROM Titulo t " +
-           "JOIN JugadorEquipo je ON t.equipo.id = je.equipo.id AND t.torneo.id = je.torneo.id " +
+           "JOIN JugadorEquipo je ON je.equipoTorneo.id = t.equipoTorneo.id " +
            "WHERE je.cedula = :cedula")
     List<Titulo> findByJugadorCedula(String cedula);
 }

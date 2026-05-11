@@ -20,7 +20,7 @@ public class EquipoController {
     private final EquipoRepository equipoRepository;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('JUGADOR','DELEGADO')")
+    @PreAuthorize("hasAnyRole('JUGADOR','DELEGADO','ADMINISTRADOR')")
     public ResponseEntity<List<EquipoDTO>> listar() {
         var equipos = equipoRepository.findAll()
                 .stream()
@@ -28,7 +28,6 @@ public class EquipoController {
                 .map(equipo -> EquipoDTO.builder()
                         .id(equipo.getId())
                         .nombre(equipo.getNombre())
-                        .delegadoCedula(equipo.getDelegadoCedula())
                         .build())
                 .toList();
         return ResponseEntity.ok(equipos);

@@ -7,7 +7,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import terminus.co.edu.ufps.competicion.dto.TorneoDTO;
+import terminus.co.edu.ufps.competicion.model.EstadoTorneo;
 import terminus.co.edu.ufps.competicion.repository.TorneoRepository;
+import terminus.co.edu.ufps.competicion.service.TorneoAdminService;
 
 import java.util.List;
 
@@ -17,14 +19,13 @@ import java.util.List;
 public class TorneoController {
 
     private final TorneoRepository torneoRepository;
+    private final TorneoAdminService torneoAdminService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('JUGADOR','DELEGADO')")
+    @PreAuthorize("hasAnyRole('JUGADOR','DELEGADO','ADMINISTRADOR')")
     public ResponseEntity<List<TorneoDTO>> listar() {
-        var torneos = torneoRepository.findAllByOrderByNombreDesc()
-                .stream()
-                .map(t -> TorneoDTO.builder().id(t.getId()).nombre(t.getNombre()).build())
-                .toList();
-        return ResponseEntity.ok(torneos);
+        var visibles = torneoRepository.findByEstadoInOrderByEdicionDesc(
+                List.of(EstadoTorneo.PUBLICADO, EstadoTorneo.EN_CURSO, EstadoTorneo.FINALIZADO));
+        return ResponseEntity.ok(visibles.stream().map(torneoAdminService::toDTO).toList());
     }
 }

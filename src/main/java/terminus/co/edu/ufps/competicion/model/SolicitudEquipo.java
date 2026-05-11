@@ -2,6 +2,7 @@ package terminus.co.edu.ufps.competicion.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -17,6 +18,14 @@ public class SolicitudEquipo {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "torneo_id", nullable = false)
+    private Torneo torneo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "equipo_torneo_id", nullable = false)
+    private EquipoTorneo equipoTorneo;
+
     @Column(nullable = false, length = 20)
     private String cedula;
 
@@ -25,14 +34,6 @@ public class SolicitudEquipo {
 
     @Column(length = 150)
     private String correo;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "equipo_id", nullable = false)
-    private Equipo equipo;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "torneo_id", nullable = false)
-    private Torneo torneo;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

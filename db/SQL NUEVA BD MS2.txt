@@ -1,0 +1,163 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.equipo_torneo (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  torneo_id uuid NOT NULL,
+  equipo_id uuid NOT NULL,
+  delegado_cedula character varying NOT NULL,
+  estado_inscripcion character varying NOT NULL CHECK (estado_inscripcion::text = ANY (ARRAY['PENDIENTE_PAGO'::character varying, 'APROBADO'::character varying, 'RECHAZADO'::character varying]::text[])),
+  fecha_inscripcion timestamp without time zone NOT NULL DEFAULT now(),
+  aprobado_por character varying,
+  motivo_rechazo character varying,
+  CONSTRAINT equipo_torneo_pkey PRIMARY KEY (id),
+  CONSTRAINT equipo_torneo_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES public.torneos(id),
+  CONSTRAINT equipo_torneo_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id)
+);
+CREATE TABLE public.equipos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre character varying NOT NULL,
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT equipos_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.eventos_partido (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  partido_id uuid NOT NULL,
+  cedula character varying NOT NULL,
+  equipo_torneo_id uuid NOT NULL,
+  tipo_evento character varying NOT NULL CHECK (tipo_evento::text = ANY (ARRAY['GOL'::character varying, 'AMARILLA'::character varying, 'AZUL'::character varying, 'ROJA'::character varying]::text[])),
+  orden integer NOT NULL CHECK (orden > 0),
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT eventos_partido_pkey PRIMARY KEY (id),
+  CONSTRAINT eventos_partido_partido_id_fkey FOREIGN KEY (partido_id) REFERENCES public.partidos(id),
+  CONSTRAINT eventos_partido_cedula_fkey FOREIGN KEY (cedula) REFERENCES public.jugadores(cedula),
+  CONSTRAINT eventos_partido_equipo_torneo_id_fkey FOREIGN KEY (equipo_torneo_id) REFERENCES public.equipo_torneo(id)
+);
+CREATE TABLE public.jugador_equipo (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cedula character varying NOT NULL,
+  torneo_id uuid NOT NULL,
+  equipo_torneo_id uuid NOT NULL,
+  fecha_inicio date NOT NULL DEFAULT CURRENT_DATE,
+  fecha_fin date,
+  estado character varying NOT NULL CHECK (estado::text = ANY (ARRAY['ACTIVO'::character varying, 'RETIRADO'::character varying]::text[])),
+  numero_camiseta integer CHECK (numero_camiseta IS NULL OR numero_camiseta > 0),
+  CONSTRAINT jugador_equipo_pkey PRIMARY KEY (id),
+  CONSTRAINT jugador_equipo_cedula_fkey FOREIGN KEY (cedula) REFERENCES public.jugadores(cedula),
+  CONSTRAINT jugador_equipo_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES public.torneos(id),
+  CONSTRAINT jugador_equipo_equipo_torneo_id_fkey FOREIGN KEY (equipo_torneo_id) REFERENCES public.equipo_torneo(id)
+);
+CREATE TABLE public.jugadores (
+  cedula character varying NOT NULL,
+  nombre character varying NOT NULL,
+  correo character varying,
+  rol_jugador character varying NOT NULL CHECK (rol_jugador::text = ANY (ARRAY['ESTUDIANTE'::character varying, 'GRADUADO'::character varying, 'PROFESOR'::character varying, 'ADMINISTRATIVO'::character varying]::text[])),
+  codigo_universitario character varying,
+  semestre integer,
+  altura_cm integer,
+  pierna_habil character varying,
+  posicion character varying,
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT jugadores_pkey PRIMARY KEY (cedula)
+);
+CREATE TABLE public.partido_jugador (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  partido_id uuid NOT NULL,
+  cedula character varying NOT NULL,
+  equipo_torneo_id uuid NOT NULL,
+  jugo boolean NOT NULL DEFAULT true,
+  goles integer NOT NULL DEFAULT 0 CHECK (goles >= 0),
+  CONSTRAINT partido_jugador_pkey PRIMARY KEY (id),
+  CONSTRAINT partido_jugador_partido_id_fkey FOREIGN KEY (partido_id) REFERENCES public.partidos(id),
+  CONSTRAINT partido_jugador_cedula_fkey FOREIGN KEY (cedula) REFERENCES public.jugadores(cedula),
+  CONSTRAINT partido_jugador_equipo_torneo_id_fkey FOREIGN KEY (equipo_torneo_id) REFERENCES public.equipo_torneo(id)
+);
+CREATE TABLE public.partidos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  torneo_id uuid NOT NULL,
+  equipo_local_torneo_id uuid NOT NULL,
+  equipo_visitante_torneo_id uuid NOT NULL,
+  fecha timestamp without time zone NOT NULL,
+  estado character varying NOT NULL CHECK (estado::text = ANY (ARRAY['PROGRAMADO'::character varying, 'EN_CURSO'::character varying, 'FINALIZADO'::character varying, 'APLAZADO'::character varying, 'WO'::character varying]::text[])),
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT partidos_pkey PRIMARY KEY (id),
+  CONSTRAINT partidos_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES public.torneos(id),
+  CONSTRAINT partidos_equipo_local_torneo_id_fkey FOREIGN KEY (equipo_local_torneo_id) REFERENCES public.equipo_torneo(id),
+  CONSTRAINT partidos_equipo_visitante_torneo_id_fkey FOREIGN KEY (equipo_visitante_torneo_id) REFERENCES public.equipo_torneo(id)
+);
+CREATE TABLE public.premio_asignado (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  torneo_id uuid NOT NULL,
+  premio_id uuid NOT NULL,
+  cedula character varying,
+  equipo_torneo_id uuid,
+  fecha_asignacion timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT premio_asignado_pkey PRIMARY KEY (id),
+  CONSTRAINT premio_asignado_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES public.torneos(id),
+  CONSTRAINT premio_asignado_premio_id_fkey FOREIGN KEY (premio_id) REFERENCES public.premio_catalogo(id),
+  CONSTRAINT premio_asignado_cedula_fkey FOREIGN KEY (cedula) REFERENCES public.jugadores(cedula),
+  CONSTRAINT premio_asignado_equipo_torneo_id_fkey FOREIGN KEY (equipo_torneo_id) REFERENCES public.equipo_torneo(id)
+);
+CREATE TABLE public.premio_catalogo (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  codigo character varying NOT NULL,
+  nombre character varying NOT NULL,
+  descripcion character varying,
+  CONSTRAINT premio_catalogo_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.solicitudes_equipo (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  torneo_id uuid NOT NULL,
+  equipo_torneo_id uuid NOT NULL,
+  cedula character varying NOT NULL,
+  nombre character varying NOT NULL,
+  correo character varying,
+  estado character varying NOT NULL CHECK (estado::text = ANY (ARRAY['PENDIENTE'::character varying, 'APROBADA'::character varying, 'RECHAZADA'::character varying]::text[])),
+  fecha_solicitud timestamp without time zone NOT NULL DEFAULT now(),
+  fecha_resolucion timestamp without time zone,
+  motivo_rechazo character varying,
+  CONSTRAINT solicitudes_equipo_pkey PRIMARY KEY (id),
+  CONSTRAINT solicitudes_equipo_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES public.torneos(id),
+  CONSTRAINT solicitudes_equipo_equipo_torneo_id_fkey FOREIGN KEY (equipo_torneo_id) REFERENCES public.equipo_torneo(id),
+  CONSTRAINT solicitudes_equipo_cedula_fkey FOREIGN KEY (cedula) REFERENCES public.jugadores(cedula)
+);
+CREATE TABLE public.tarjetas (
+  tipo character varying NOT NULL CHECK (tipo::text = ANY (ARRAY['AMARILLA'::character varying, 'AZUL'::character varying, 'ROJA'::character varying]::text[])),
+  id uuid NOT NULL,
+  partido_id uuid NOT NULL,
+  cedula character varying NOT NULL,
+  CONSTRAINT tarjetas_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.titulos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  torneo_id uuid NOT NULL,
+  equipo_torneo_id uuid NOT NULL,
+  puesto character varying NOT NULL CHECK (puesto::text = ANY (ARRAY['CAMPEON'::character varying, 'SUBCAMPEON'::character varying, 'TERCERO'::character varying]::text[])),
+  fecha date,
+  CONSTRAINT titulos_pkey PRIMARY KEY (id),
+  CONSTRAINT titulos_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES public.torneos(id),
+  CONSTRAINT titulos_equipo_torneo_id_fkey FOREIGN KEY (equipo_torneo_id) REFERENCES public.equipo_torneo(id)
+);
+CREATE TABLE public.torneo_premio (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  torneo_id uuid NOT NULL,
+  premio_id uuid NOT NULL,
+  titulo character varying,
+  descripcion character varying,
+  monto integer,
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT torneo_premio_pkey PRIMARY KEY (id),
+  CONSTRAINT torneo_premio_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES public.torneos(id),
+  CONSTRAINT torneo_premio_premio_id_fkey FOREIGN KEY (premio_id) REFERENCES public.premio_catalogo(id)
+);
+CREATE TABLE public.torneos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre character varying NOT NULL,
+  edicion integer NOT NULL,
+  estado character varying NOT NULL CHECK (estado::text = ANY (ARRAY['BORRADOR'::character varying, 'PUBLICADO'::character varying, 'EN_CURSO'::character varying, 'FINALIZADO'::character varying]::text[])),
+  fecha_inicio date,
+  fecha_fin date,
+  publicado_en timestamp without time zone,
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT torneos_pkey PRIMARY KEY (id)
+);

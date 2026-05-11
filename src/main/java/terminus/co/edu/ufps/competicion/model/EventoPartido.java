@@ -12,32 +12,31 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "partidos")
-public class Partido {
+@Table(name = "eventos_partido",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"partido_id", "orden"}))
+public class EventoPartido {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "torneo_id", nullable = false)
-    private Torneo torneo;
+    @JoinColumn(name = "partido_id", nullable = false)
+    private Partido partido;
+
+    @Column(name = "cedula", nullable = false, length = 20)
+    private String cedula;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "equipo_local_torneo_id", nullable = false)
-    private EquipoTorneo equipoLocalTorneo;
+    @JoinColumn(name = "equipo_torneo_id", nullable = false)
+    private EquipoTorneo equipoTorneo;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "equipo_visitante_torneo_id", nullable = false)
-    private EquipoTorneo equipoVisitanteTorneo;
-
-    @Column(nullable = false)
-    private LocalDateTime fecha;
-
-    @Builder.Default
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private EstadoPartido estado = EstadoPartido.PROGRAMADO;
+    @Column(name = "tipo_evento", nullable = false, length = 20)
+    private TipoEvento tipoEvento;
+
+    @Column(name = "orden", nullable = false)
+    private Integer orden;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -1,21 +1,22 @@
-package terminus.co.edu.ufps.competicion.dto;
+package terminus.co.edu.ufps.competicion.dto.delegado;
 
 import lombok.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TorneoDTO {
+public class TorneoDisponibleDTO {
     private UUID id;
     private String nombre;
     private Integer edicion;
     private String estado;
     private LocalDate fechaInicio;
     private LocalDate fechaFin;
-    private LocalDateTime publicadoEn;
+    private Boolean inscrito;
+    private String estadoInscripcion;
+    private UUID equipoTorneoId;
 }

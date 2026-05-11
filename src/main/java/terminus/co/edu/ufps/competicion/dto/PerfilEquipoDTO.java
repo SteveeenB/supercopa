@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 public class PerfilEquipoDTO {
     private UUID id;
     private String nombre;
+    private String torneo;
     private LocalDate desde;
     private LocalDate hasta;
 }

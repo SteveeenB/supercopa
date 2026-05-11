@@ -13,6 +13,7 @@ public class SolicitudDTO {
     private String cedula;
     private String nombre;
     private String correo;
+    private UUID equipoTorneoId;
     private UUID equipoId;
     private String equipoNombre;
     private UUID torneoId;

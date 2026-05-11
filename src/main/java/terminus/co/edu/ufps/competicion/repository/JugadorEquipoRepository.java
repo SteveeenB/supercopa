@@ -10,4 +10,5 @@ public interface JugadorEquipoRepository extends JpaRepository<JugadorEquipo, UU
     Optional<JugadorEquipo> findByCedulaAndTorneoId(String cedula, UUID torneoId);
     boolean existsByCedulaAndTorneoId(String cedula, UUID torneoId);
     List<JugadorEquipo> findByCedulaOrderByFechaInicioDesc(String cedula);
+    List<JugadorEquipo> findByEquipoTorneoIdOrderByFechaInicioAsc(UUID equipoTorneoId);
 }

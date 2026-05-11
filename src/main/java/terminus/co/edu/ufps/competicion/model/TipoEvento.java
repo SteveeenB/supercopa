@@ -1,6 +1,7 @@
 package terminus.co.edu.ufps.competicion.model;
 
-public enum TipoTarjeta {
+public enum TipoEvento {
+    GOL,
     AMARILLA,
     AZUL,
     ROJA

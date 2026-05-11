@@ -2,6 +2,7 @@ package terminus.co.edu.ufps.competicion.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -10,7 +11,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "titulos")
+@Table(name = "titulos",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"torneo_id", "puesto"}))
 public class Titulo {
 
     @Id
@@ -22,8 +24,8 @@ public class Titulo {
     private Torneo torneo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "equipo_id", nullable = false)
-    private Equipo equipo;
+    @JoinColumn(name = "equipo_torneo_id", nullable = false)
+    private EquipoTorneo equipoTorneo;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

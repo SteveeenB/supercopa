@@ -2,6 +2,9 @@ package terminus.co.edu.ufps.competicion.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -19,6 +22,7 @@ public class Equipo {
     @Column(nullable = false, length = 150)
     private String nombre;
 
-    @Column(name = "delegado_cedula", length = 20)
-    private String delegadoCedula;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 }

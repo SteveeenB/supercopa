@@ -13,5 +13,4 @@ import lombok.NoArgsConstructor;
 public class EquipoDTO {
     private UUID id;
     private String nombre;
-    private String delegadoCedula;
 }
