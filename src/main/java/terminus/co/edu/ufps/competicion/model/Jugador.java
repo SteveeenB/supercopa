@@ -25,7 +25,7 @@ public class Jugador {
     private String correo;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "rol_jugador", nullable = false, length = 20)
+    @Column(name = "rol_jugador", length = 20)
     private RolJugador rolJugador;
 
     @Column(name = "codigo_universitario", length = 50)

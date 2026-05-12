@@ -42,7 +42,7 @@ create table if not exists jugadores (
   cedula varchar primary key,
   nombre varchar not null,
   correo varchar,
-  rol_jugador varchar not null check (rol_jugador in ('ESTUDIANTE','GRADUADO','PROFESOR','ADMINISTRATIVO')),
+  rol_jugador varchar check (rol_jugador is null or rol_jugador in ('ESTUDIANTE','GRADUADO','PROFESOR','ADMINISTRATIVO')),
   codigo_universitario varchar,
   semestre integer,
   altura_cm integer,

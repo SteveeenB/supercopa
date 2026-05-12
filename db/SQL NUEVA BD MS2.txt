@@ -51,7 +51,7 @@ CREATE TABLE public.jugadores (
   cedula character varying NOT NULL,
   nombre character varying NOT NULL,
   correo character varying,
-  rol_jugador character varying NOT NULL CHECK (rol_jugador::text = ANY (ARRAY['ESTUDIANTE'::character varying, 'GRADUADO'::character varying, 'PROFESOR'::character varying, 'ADMINISTRATIVO'::character varying]::text[])),
+  rol_jugador character varying CHECK (rol_jugador IS NULL OR rol_jugador::text = ANY (ARRAY['ESTUDIANTE'::character varying, 'GRADUADO'::character varying, 'PROFESOR'::character varying, 'ADMINISTRATIVO'::character varying]::text[])),
   codigo_universitario character varying,
   semestre integer,
   altura_cm integer,

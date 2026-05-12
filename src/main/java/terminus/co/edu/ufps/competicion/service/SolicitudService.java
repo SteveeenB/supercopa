@@ -53,7 +53,6 @@ public class SolicitudService {
                 .cedula(cedula)
                 .nombre(nombre != null ? nombre : "")
                 .correo(correo)
-                .rolJugador(RolJugador.GRADUADO) // default seguro si no esta en padron MS2
                 .build());
         if (nombre != null && !nombre.isBlank()) jugador.setNombre(nombre);
         if (correo != null && !correo.isBlank()) jugador.setCorreo(correo);
@@ -154,11 +153,15 @@ public class SolicitudService {
 
     private SolicitudDTO toDTO(SolicitudEquipo s) {
         var et = s.getEquipoTorneo();
+        var jugador = jugadorRepo.findById(s.getCedula()).orElse(null);
         return SolicitudDTO.builder()
                 .id(s.getId())
                 .cedula(s.getCedula())
                 .nombre(s.getNombre())
                 .correo(s.getCorreo())
+            .alturaCm(jugador != null ? jugador.getAlturaCm() : null)
+            .piernaHabil(jugador != null ? jugador.getPiernaHabil() : null)
+            .posicion(jugador != null ? jugador.getPosicion() : null)
                 .equipoTorneoId(et.getId())
                 .equipoId(et.getEquipo().getId())
                 .equipoNombre(et.getEquipo().getNombre())

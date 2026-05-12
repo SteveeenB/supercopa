@@ -172,4 +172,27 @@ public class DelegadoService {
                 })
                 .toList();
     }
+
+    @Transactional(readOnly = true)
+    public List<MiembroEquipoDTO> miembrosAdmin(UUID equipoTorneoId) {
+        var et = equipoTorneoRepo.findById(equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inscripcion no encontrada."));
+        return jugadorEquipoRepo.findByEquipoTorneoIdOrderByFechaInicioAsc(equipoTorneoId)
+                .stream()
+                .map(je -> {
+                    var jugador = jugadorRepo.findById(je.getCedula()).orElse(null);
+                    return MiembroEquipoDTO.builder()
+                            .cedula(je.getCedula())
+                            .nombre(jugador != null ? jugador.getNombre() : null)
+                            .posicion(jugador != null ? jugador.getPosicion() : null)
+                            .piernaHabil(jugador != null ? jugador.getPiernaHabil() : null)
+                            .alturaCm(jugador != null ? jugador.getAlturaCm() : null)
+                            .numeroCamiseta(je.getNumeroCamiseta())
+                            .estado(je.getEstado() != null ? je.getEstado().name() : null)
+                            .desde(je.getFechaInicio())
+                            .esDelegado(je.getCedula().equals(et.getDelegadoCedula()))
+                            .build();
+                })
+                .toList();
+    }
 }

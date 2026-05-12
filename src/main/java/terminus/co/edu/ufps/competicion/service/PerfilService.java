@@ -18,7 +18,6 @@ import terminus.co.edu.ufps.competicion.dto.PerfilTituloDTO;
 import terminus.co.edu.ufps.competicion.model.EventoPartido;
 import terminus.co.edu.ufps.competicion.model.Jugador;
 import terminus.co.edu.ufps.competicion.model.PartidoJugador;
-import terminus.co.edu.ufps.competicion.model.RolJugador;
 import terminus.co.edu.ufps.competicion.model.TipoEvento;
 import terminus.co.edu.ufps.competicion.repository.EventoPartidoRepository;
 import terminus.co.edu.ufps.competicion.repository.JugadorEquipoRepository;
@@ -44,7 +43,6 @@ public class PerfilService {
                                 .cedula(cedula)
                                 .nombre(nombre != null ? nombre : "")
                                 .correo(email)
-                                .rolJugador(RolJugador.GRADUADO)
                                 .build()));
 
         var equipos = jugadorEquipoRepository.findByCedulaOrderByFechaInicioDesc(cedula)
