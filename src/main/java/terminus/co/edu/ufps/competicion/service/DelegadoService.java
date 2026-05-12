@@ -32,30 +32,30 @@ public class DelegadoService {
         if (req.getNombre() == null || req.getNombre().isBlank()) {
             throw new RuntimeException("El nombre del equipo es obligatorio.");
         }
-        // Asegura que el delegado ya exista como Jugador (se autoinscribira despues al inscribir torneo).
+        // Asegura que el delegado este registrado como Jugador (necesario para auto-inscripcion despues).
         jugadorRepo.findById(delegadoCedula)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "El delegado no esta registrado como jugador. Solicita primero el rol jugador o pide al admin que lo cargue al padron."));
 
-        // Un delegado puede tener un solo equipo base — si ya tiene una inscripcion, devolvemos el equipo base de la primera.
-        var inscripcionesPrevias = equipoTorneoRepo.findByDelegadoCedulaOrderByFechaInscripcionDesc(delegadoCedula);
-        if (!inscripcionesPrevias.isEmpty()) {
-            var existente = inscripcionesPrevias.get(0).getEquipo();
-            return EquipoDTO.builder().id(existente.getId()).nombre(existente.getNombre()).build();
+        // Un delegado solo puede tener un equipo base.
+        var existente = equipoRepo.findByDelegadoCedula(delegadoCedula);
+        if (existente.isPresent()) {
+            throw new RuntimeException("Ya tienes un equipo creado: \""
+                    + existente.get().getNombre() + "\". No puedes crear otro.");
         }
 
-        var equipo = Equipo.builder().nombre(req.getNombre().trim()).build();
+        var equipo = Equipo.builder()
+                .nombre(req.getNombre().trim())
+                .delegadoCedula(delegadoCedula)
+                .build();
         equipoRepo.save(equipo);
         return EquipoDTO.builder().id(equipo.getId()).nombre(equipo.getNombre()).build();
     }
 
     @Transactional(readOnly = true)
     public EquipoDTO miEquipo(String delegadoCedula) {
-        var inscripciones = equipoTorneoRepo.findByDelegadoCedulaOrderByFechaInscripcionDesc(delegadoCedula);
-        if (inscripciones.isEmpty()) {
-            throw new ResourceNotFoundException("Aun no has creado tu equipo.");
-        }
-        var equipo = inscripciones.get(0).getEquipo();
+        var equipo = equipoRepo.findByDelegadoCedula(delegadoCedula)
+                .orElseThrow(() -> new ResourceNotFoundException("Aun no has creado tu equipo."));
         return EquipoDTO.builder().id(equipo.getId()).nombre(equipo.getNombre()).build();
     }
 

@@ -22,6 +22,9 @@ public class Equipo {
     @Column(nullable = false, length = 150)
     private String nombre;
 
+    @Column(name = "delegado_cedula", nullable = false, length = 20, unique = true)
+    private String delegadoCedula;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
