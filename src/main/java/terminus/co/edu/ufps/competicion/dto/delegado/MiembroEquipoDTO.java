@@ -18,4 +18,5 @@ public class MiembroEquipoDTO {
     private String estado;
     private LocalDate desde;
     private Boolean esDelegado;
+    private String torneoEstado;
 }

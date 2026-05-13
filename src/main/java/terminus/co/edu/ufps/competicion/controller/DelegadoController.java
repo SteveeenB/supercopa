@@ -1,5 +1,6 @@
 package terminus.co.edu.ufps.competicion.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -8,6 +9,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import terminus.co.edu.ufps.competicion.dto.EquipoDTO;
 import terminus.co.edu.ufps.competicion.dto.admin.InscripcionDTO;
+import terminus.co.edu.ufps.competicion.dto.delegado.ActualizarCamisetaRequest;
+import terminus.co.edu.ufps.competicion.dto.delegado.AgregarMiembroRequest;
 import terminus.co.edu.ufps.competicion.dto.delegado.CrearEquipoRequest;
 import terminus.co.edu.ufps.competicion.dto.delegado.MiembroEquipoDTO;
 import terminus.co.edu.ufps.competicion.dto.delegado.TorneoDisponibleDTO;
@@ -65,5 +68,37 @@ public class DelegadoController {
             @PathVariable UUID equipoTorneoId,
             @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(delegadoService.miembros(jwt.getClaimAsString("cedula"), equipoTorneoId));
+    }
+
+    // ── HU44 — Agregar miembro ──────────────────────────────
+    @PostMapping("/equipo-torneo/{equipoTorneoId}/miembros")
+    public ResponseEntity<MiembroEquipoDTO> agregarMiembro(
+            @PathVariable UUID equipoTorneoId,
+            @RequestBody @Valid AgregarMiembroRequest req,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(
+                delegadoService.agregarMiembro(jwt.getClaimAsString("cedula"), equipoTorneoId, req));
+    }
+
+    // ── HU44 — Remover miembro ──────────────────────────────
+    @PostMapping("/equipo-torneo/{equipoTorneoId}/miembros/{cedula}/remover")
+    public ResponseEntity<MiembroEquipoDTO> removerMiembro(
+            @PathVariable UUID equipoTorneoId,
+            @PathVariable String cedula,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(
+                delegadoService.removerMiembro(jwt.getClaimAsString("cedula"), equipoTorneoId, cedula));
+    }
+
+    // ── HU44 — Actualizar número de camiseta ──────────────
+    @PatchMapping("/equipo-torneo/{equipoTorneoId}/miembros/{cedula}/camiseta")
+    public ResponseEntity<MiembroEquipoDTO> actualizarCamiseta(
+            @PathVariable UUID equipoTorneoId,
+            @PathVariable String cedula,
+            @RequestBody @Valid ActualizarCamisetaRequest req,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(
+                delegadoService.actualizarCamiseta(
+                        jwt.getClaimAsString("cedula"), equipoTorneoId, cedula, req.getNumeroCamiseta()));
     }
 }

@@ -1,6 +1,7 @@
 package terminus.co.edu.ufps.competicion.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import terminus.co.edu.ufps.competicion.model.EstadoMembresia;
 import terminus.co.edu.ufps.competicion.model.JugadorEquipo;
 import java.util.List;
 import java.util.Optional;
@@ -11,4 +12,8 @@ public interface JugadorEquipoRepository extends JpaRepository<JugadorEquipo, UU
     boolean existsByCedulaAndTorneoId(String cedula, UUID torneoId);
     List<JugadorEquipo> findByCedulaOrderByFechaInicioDesc(String cedula);
     List<JugadorEquipo> findByEquipoTorneoIdOrderByFechaInicioAsc(UUID equipoTorneoId);
+
+    boolean existsByCedulaAndTorneoIdAndEstado(String cedula, UUID torneoId, EstadoMembresia estado);
+    boolean existsByEquipoTorneoIdAndNumeroCamisetaAndEstado(UUID equipoTorneoId, Integer numeroCamiseta, EstadoMembresia estado);
+    Optional<JugadorEquipo> findByCedulaAndEquipoTorneoId(String cedula, UUID equipoTorneoId);
 }

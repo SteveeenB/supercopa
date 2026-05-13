@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import terminus.co.edu.ufps.competicion.dto.EquipoDTO;
 import terminus.co.edu.ufps.competicion.dto.admin.InscripcionDTO;
+import terminus.co.edu.ufps.competicion.dto.delegado.ActualizarCamisetaRequest;
+import terminus.co.edu.ufps.competicion.dto.delegado.AgregarMiembroRequest;
 import terminus.co.edu.ufps.competicion.dto.delegado.CrearEquipoRequest;
 import terminus.co.edu.ufps.competicion.dto.delegado.MiembroEquipoDTO;
 import terminus.co.edu.ufps.competicion.dto.delegado.TorneoDisponibleDTO;
@@ -147,6 +149,142 @@ public class DelegadoService {
         return torneoAdminService.toInscripcionDTO(et);
     }
 
+    // ─────────────────────────────────────────────────────────
+    //  HU44 — Delegado gestiona plantel directamente
+    // ─────────────────────────────────────────────────────────
+
+    @Transactional
+    public MiembroEquipoDTO agregarMiembro(String delegadoCedula, UUID equipoTorneoId,
+                                            AgregarMiembroRequest req) {
+        var et = equipoTorneoRepo.findById(equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inscripcion no encontrada."));
+        if (!et.getDelegadoCedula().equals(delegadoCedula)) {
+            throw new RuntimeException("No eres el delegado de esta inscripcion.");
+        }
+
+        var jugador = jugadorRepo.findById(req.getCedula())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Jugador no encontrado. Solicita al administrador que lo cargue en el padron oficial."));
+
+        if (jugadorEquipoRepo.existsByCedulaAndTorneoIdAndEstado(
+                req.getCedula(), et.getTorneo().getId(), EstadoMembresia.ACTIVO)) {
+            throw new RuntimeException("El jugador ya pertenece a un equipo en este torneo.");
+        }
+
+        if (req.getNumeroCamiseta() != null) {
+            if (jugadorEquipoRepo.existsByEquipoTorneoIdAndNumeroCamisetaAndEstado(
+                    equipoTorneoId, req.getNumeroCamiseta(), EstadoMembresia.ACTIVO)) {
+                throw new RuntimeException(
+                        "El número " + req.getNumeroCamiseta() + " ya está asignado en este equipo.");
+            }
+        }
+
+        var existente = jugadorEquipoRepo.findByCedulaAndTorneoId(
+                req.getCedula(), et.getTorneo().getId());
+
+        if (existente.isPresent()) {
+            var je = existente.get();
+            je.setEquipoTorneo(et);
+            je.setEstado(EstadoMembresia.ACTIVO);
+            je.setFechaInicio(LocalDate.now());
+            je.setFechaFin(null);
+            if (req.getNumeroCamiseta() != null) {
+                je.setNumeroCamiseta(req.getNumeroCamiseta());
+            }
+            jugadorEquipoRepo.save(je);
+            return toMiembroDTO(je, jugador, et);
+        }
+
+        var je = JugadorEquipo.builder()
+                .cedula(jugador.getCedula())
+                .torneo(et.getTorneo())
+                .equipoTorneo(et)
+                .fechaInicio(LocalDate.now())
+                .estado(EstadoMembresia.ACTIVO)
+                .numeroCamiseta(req.getNumeroCamiseta())
+                .build();
+        jugadorEquipoRepo.save(je);
+
+        return toMiembroDTO(je, jugador, et);
+    }
+
+    @Transactional
+    public MiembroEquipoDTO removerMiembro(String delegadoCedula, UUID equipoTorneoId, String cedula) {
+        var et = equipoTorneoRepo.findById(equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inscripcion no encontrada."));
+        if (!et.getDelegadoCedula().equals(delegadoCedula)) {
+            throw new RuntimeException("No eres el delegado de esta inscripcion.");
+        }
+
+        var je = jugadorEquipoRepo.findByCedulaAndEquipoTorneoId(cedula, equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Jugador no encontrado en el plantel."));
+
+        if (je.getCedula().equals(et.getDelegadoCedula())) {
+            throw new RuntimeException("No puedes eliminar al delegado del plantel.");
+        }
+
+        if (je.getEstado() == EstadoMembresia.RETIRADO) {
+            var jugador = jugadorRepo.findById(cedula).orElse(null);
+            return toMiembroDTO(je, jugador, et);
+        }
+
+        je.setEstado(EstadoMembresia.RETIRADO);
+        je.setFechaFin(LocalDate.now());
+        jugadorEquipoRepo.save(je);
+
+        var jugador = jugadorRepo.findById(cedula).orElse(null);
+        return toMiembroDTO(je, jugador, et);
+    }
+
+    @Transactional
+    public MiembroEquipoDTO actualizarCamiseta(String delegadoCedula, UUID equipoTorneoId,
+                                                String cedula, Integer numeroCamiseta) {
+        var et = equipoTorneoRepo.findById(equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inscripcion no encontrada."));
+        if (!et.getDelegadoCedula().equals(delegadoCedula)) {
+            throw new RuntimeException("No eres el delegado de esta inscripcion.");
+        }
+
+        var je = jugadorEquipoRepo.findByCedulaAndEquipoTorneoId(cedula, equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Jugador no encontrado en el plantel."));
+
+        if (numeroCamiseta != null) {
+            var ocupado = jugadorEquipoRepo
+                    .findByEquipoTorneoIdOrderByFechaInicioAsc(equipoTorneoId)
+                    .stream()
+                    .filter(j -> j.getEstado() == EstadoMembresia.ACTIVO
+                            && j.getNumeroCamiseta() != null
+                            && j.getNumeroCamiseta().equals(numeroCamiseta)
+                            && !j.getCedula().equals(cedula))
+                    .findAny();
+            if (ocupado.isPresent()) {
+                throw new RuntimeException(
+                        "El número " + numeroCamiseta + " ya está asignado a otro jugador activo.");
+            }
+        }
+
+        je.setNumeroCamiseta(numeroCamiseta);
+        jugadorEquipoRepo.save(je);
+
+        var jugador = jugadorRepo.findById(cedula).orElse(null);
+        return toMiembroDTO(je, jugador, et);
+    }
+
+    private MiembroEquipoDTO toMiembroDTO(JugadorEquipo je, Jugador jugador, EquipoTorneo et) {
+        return MiembroEquipoDTO.builder()
+                .cedula(je.getCedula())
+                .nombre(jugador != null ? jugador.getNombre() : null)
+                .posicion(jugador != null ? jugador.getPosicion() : null)
+                .piernaHabil(jugador != null ? jugador.getPiernaHabil() : null)
+                .alturaCm(jugador != null ? jugador.getAlturaCm() : null)
+                .numeroCamiseta(je.getNumeroCamiseta())
+                .estado(je.getEstado() != null ? je.getEstado().name() : null)
+                .desde(je.getFechaInicio())
+                .esDelegado(je.getCedula().equals(et.getDelegadoCedula()))
+                .torneoEstado(et.getTorneo().getEstado().name())
+                .build();
+    }
+
     @Transactional(readOnly = true)
     public List<MiembroEquipoDTO> miembros(String delegadoCedula, UUID equipoTorneoId) {
         var et = equipoTorneoRepo.findById(equipoTorneoId)
@@ -156,20 +294,7 @@ public class DelegadoService {
         }
         return jugadorEquipoRepo.findByEquipoTorneoIdOrderByFechaInicioAsc(equipoTorneoId)
                 .stream()
-                .map(je -> {
-                    var jugador = jugadorRepo.findById(je.getCedula()).orElse(null);
-                    return MiembroEquipoDTO.builder()
-                            .cedula(je.getCedula())
-                            .nombre(jugador != null ? jugador.getNombre() : null)
-                            .posicion(jugador != null ? jugador.getPosicion() : null)
-                            .piernaHabil(jugador != null ? jugador.getPiernaHabil() : null)
-                            .alturaCm(jugador != null ? jugador.getAlturaCm() : null)
-                            .numeroCamiseta(je.getNumeroCamiseta())
-                            .estado(je.getEstado() != null ? je.getEstado().name() : null)
-                            .desde(je.getFechaInicio())
-                            .esDelegado(je.getCedula().equals(et.getDelegadoCedula()))
-                            .build();
-                })
+                .map(je -> toMiembroDTO(je, jugadorRepo.findById(je.getCedula()).orElse(null), et))
                 .toList();
     }
 
@@ -179,20 +304,7 @@ public class DelegadoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Inscripcion no encontrada."));
         return jugadorEquipoRepo.findByEquipoTorneoIdOrderByFechaInicioAsc(equipoTorneoId)
                 .stream()
-                .map(je -> {
-                    var jugador = jugadorRepo.findById(je.getCedula()).orElse(null);
-                    return MiembroEquipoDTO.builder()
-                            .cedula(je.getCedula())
-                            .nombre(jugador != null ? jugador.getNombre() : null)
-                            .posicion(jugador != null ? jugador.getPosicion() : null)
-                            .piernaHabil(jugador != null ? jugador.getPiernaHabil() : null)
-                            .alturaCm(jugador != null ? jugador.getAlturaCm() : null)
-                            .numeroCamiseta(je.getNumeroCamiseta())
-                            .estado(je.getEstado() != null ? je.getEstado().name() : null)
-                            .desde(je.getFechaInicio())
-                            .esDelegado(je.getCedula().equals(et.getDelegadoCedula()))
-                            .build();
-                })
+                .map(je -> toMiembroDTO(je, jugadorRepo.findById(je.getCedula()).orElse(null), et))
                 .toList();
     }
 }
