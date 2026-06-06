@@ -12,7 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "equipo_torneo",
+@Table(name = "equipo_torneo", schema = "supercopa",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {"torneo_id", "equipo_id"}),
                 @UniqueConstraint(columnNames = {"torneo_id", "delegado_cedula"})

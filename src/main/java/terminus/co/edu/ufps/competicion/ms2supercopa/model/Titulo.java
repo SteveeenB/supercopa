@@ -11,7 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "titulos",
+@Table(name = "titulos", schema = "supercopa",
         uniqueConstraints = @UniqueConstraint(columnNames = {"torneo_id", "puesto"}))
 public class Titulo {
 
