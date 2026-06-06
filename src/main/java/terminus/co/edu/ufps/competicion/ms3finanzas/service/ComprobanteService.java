@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.service;
+package terminus.co.edu.ufps.competicion.ms3finanzas.service;
 
 import java.time.LocalDateTime;
 import java.util.List;

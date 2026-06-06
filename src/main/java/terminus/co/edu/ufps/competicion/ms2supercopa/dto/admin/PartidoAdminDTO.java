@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin;
+package terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin;
 
 import lombok.*;
 

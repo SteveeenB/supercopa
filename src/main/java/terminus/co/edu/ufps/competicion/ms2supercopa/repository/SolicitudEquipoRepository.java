@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.repository;
+package terminus.co.edu.ufps.competicion.ms2supercopa.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

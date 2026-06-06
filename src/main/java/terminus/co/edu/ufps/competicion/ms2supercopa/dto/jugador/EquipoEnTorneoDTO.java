@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.dto.jugador;
+package terminus.co.edu.ufps.competicion.ms2supercopa.dto.jugador;
 
 import lombok.*;
 

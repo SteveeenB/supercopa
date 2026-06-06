@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.dto;
+package terminus.co.edu.ufps.competicion.ms3finanzas.dto;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

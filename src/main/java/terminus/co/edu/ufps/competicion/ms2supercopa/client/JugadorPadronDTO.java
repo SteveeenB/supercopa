@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.client;
+package terminus.co.edu.ufps.competicion.ms2supercopa.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;

@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.controller;
+package terminus.co.edu.ufps.competicion.ms2supercopa.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

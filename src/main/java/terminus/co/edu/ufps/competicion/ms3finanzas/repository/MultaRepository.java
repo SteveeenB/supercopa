@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.repository;
+package terminus.co.edu.ufps.competicion.ms3finanzas.repository;
 
 import java.util.List;
 import java.util.UUID;

@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.config;
+package terminus.co.edu.ufps.competicion.ms2supercopa.config;
 
 import java.util.ArrayList;
 import java.util.List;

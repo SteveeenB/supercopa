@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.model;
+package terminus.co.edu.ufps.competicion.ms3finanzas.model;
 
 /**
  * Origen de la multa. Los montos asociados se configuran por torneo (HU09 MS2).

@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.dto;
+package terminus.co.edu.ufps.competicion.ms2supercopa.dto;
 
 import java.util.List;
 import lombok.AllArgsConstructor;

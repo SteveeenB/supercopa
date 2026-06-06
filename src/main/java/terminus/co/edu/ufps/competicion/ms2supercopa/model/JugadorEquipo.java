@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.model;
+package terminus.co.edu.ufps.competicion.ms2supercopa.model;
 
 import jakarta.persistence.*;
 import lombok.*;

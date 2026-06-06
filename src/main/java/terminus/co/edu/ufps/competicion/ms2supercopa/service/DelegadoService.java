@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.service;
+package terminus.co.edu.ufps.competicion.ms2supercopa.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

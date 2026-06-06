@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.service;
+package terminus.co.edu.ufps.competicion.ms3finanzas.service;
 
 import java.math.BigDecimal;
 import java.util.List;

@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.controller;
+package terminus.co.edu.ufps.competicion.ms3finanzas.controller;
 
 import jakarta.validation.Valid;
 import java.util.List;

@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.model;
+package terminus.co.edu.ufps.competicion.ms3finanzas.model;
 
 /**
  * Tipo de comprobante que un delegado puede subir.

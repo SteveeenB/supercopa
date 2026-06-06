@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.controller;
+package terminus.co.edu.ufps.competicion.ms2supercopa.controller;
 
 import java.util.Comparator;
 import java.util.List;

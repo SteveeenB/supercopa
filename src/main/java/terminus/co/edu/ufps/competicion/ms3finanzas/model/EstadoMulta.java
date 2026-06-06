@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.model;
+package terminus.co.edu.ufps.competicion.ms3finanzas.model;
 
 public enum EstadoMulta {
     PENDIENTE,           // Generada, sin comprobante de pago aprobado

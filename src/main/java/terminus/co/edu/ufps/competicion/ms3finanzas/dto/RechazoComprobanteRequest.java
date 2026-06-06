@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms3finanzas.dto;
+package terminus.co.edu.ufps.competicion.ms3finanzas.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

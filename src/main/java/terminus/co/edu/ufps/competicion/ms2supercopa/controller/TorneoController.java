@@ -1,4 +1,4 @@
-﻿package terminus.co.edu.ufps.competicion.ms2supercopa.controller;
+package terminus.co.edu.ufps.competicion.ms2supercopa.controller;
 
 import lombok.RequiredArgsConstructor;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.TorneoDTO;
