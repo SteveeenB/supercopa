@@ -104,9 +104,6 @@ public class DelegadoService {
         if (equipoTorneoRepo.findByTorneoIdAndEquipoId(torneoId, equipo.getId()).isPresent()) {
             throw new RuntimeException("El equipo ya esta inscrito en este torneo.");
         }
-        if (equipoTorneoRepo.existsByEquipoIdAndEstadoInscripcion(equipo.getId(), EstadoInscripcion.EXPULSADO)) {
-            throw new RuntimeException("Este equipo fue expulsado de un torneo y no puede volver a inscribirse.");
-        }
 
         var et = EquipoTorneo.builder()
                 .torneo(torneo)

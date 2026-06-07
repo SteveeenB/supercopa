@@ -98,7 +98,7 @@ public class TorneoAdminService {
             throw new RuntimeException("La inscripcion fue rechazada y no puede aprobarse. Usa 'Habilitar' para reabrirla.");
         }
         if (et.getEstadoInscripcion() == EstadoInscripcion.EXPULSADO) {
-            throw new RuntimeException("El equipo fue expulsado del torneo y no puede aprobarse.");
+            throw new RuntimeException("El equipo fue descalificado del torneo y no puede aprobarse.");
         }
         et.setEstadoInscripcion(EstadoInscripcion.APROBADO);
         et.setAprobadoPor(adminCedula != null ? adminCedula : "ADMIN");
@@ -116,7 +116,7 @@ public class TorneoAdminService {
             if (et.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO) {
                 return toInscripcionDTO(et);
             }
-            throw new RuntimeException("Solo se puede rechazar una inscripcion en estado PENDIENTE_PAGO. Para un equipo ya aprobado usa 'Expulsar'.");
+            throw new RuntimeException("Solo se puede rechazar una inscripcion en estado PENDIENTE_PAGO. Para un equipo ya aprobado usa 'Descalificar'.");
         }
         if (motivo == null || motivo.isBlank()) {
             throw new RuntimeException("El motivo del rechazo es obligatorio.");
@@ -146,10 +146,10 @@ public class TorneoAdminService {
             return toInscripcionDTO(et);
         }
         if (et.getEstadoInscripcion() != EstadoInscripcion.APROBADO) {
-            throw new RuntimeException("Solo se puede expulsar un equipo en estado APROBADO.");
+            throw new RuntimeException("Solo se puede descalificar un equipo en estado APROBADO.");
         }
         if (motivo == null || motivo.isBlank()) {
-            throw new RuntimeException("El motivo de la expulsion es obligatorio.");
+            throw new RuntimeException("El motivo de la descalificación es obligatorio.");
         }
         et.setEstadoInscripcion(EstadoInscripcion.EXPULSADO);
         et.setExpulsadoPor(adminCedula != null ? adminCedula : "ADMIN");
