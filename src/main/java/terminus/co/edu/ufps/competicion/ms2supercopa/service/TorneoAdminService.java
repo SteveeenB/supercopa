@@ -10,9 +10,12 @@ import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.CrearTorneoReques
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EquipoTorneo;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoInscripcion;
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoPartido;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoTorneo;
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.Partido;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.Torneo;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.EquipoTorneoRepository;
+import terminus.co.edu.ufps.competicion.ms2supercopa.repository.PartidoRepository;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.TorneoRepository;
 
 import java.time.LocalDateTime;
@@ -25,6 +28,7 @@ public class TorneoAdminService {
 
     private final TorneoRepository torneoRepo;
     private final EquipoTorneoRepository equipoTorneoRepo;
+    private final PartidoRepository partidoRepo;
 
     @Transactional
     public TorneoDTO crear(CrearTorneoRequest req) {
@@ -156,6 +160,17 @@ public class TorneoAdminService {
         et.setFechaExpulsion(LocalDateTime.now());
         et.setMotivoExpulsion(motivo.trim());
         equipoTorneoRepo.save(et);
+
+        // Sus partidos pendientes (no jugados) pasan a DESCANSO: no se juegan, no suman puntos
+        // ni goles al rival. Los partidos ya FINALIZADO/WO se conservan con sus stats intactas.
+        List<Partido> pendientes = partidoRepo.findByEquipoTorneoYEstadoIn(
+                torneoId, equipoTorneoId,
+                List.of(EstadoPartido.PROGRAMADO, EstadoPartido.APLAZADO));
+        for (Partido p : pendientes) {
+            p.setEstado(EstadoPartido.DESCANSO);
+            partidoRepo.save(p);
+        }
+
         return toInscripcionDTO(et);
     }
 

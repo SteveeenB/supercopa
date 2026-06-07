@@ -43,6 +43,9 @@ public class PartidoAdminService {
         if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
             throw new RuntimeException("No se pueden agregar eventos a un partido cerrado.");
         }
+        if (partido.getEstado() == EstadoPartido.DESCANSO) {
+            throw new RuntimeException("Este partido quedo en DESCANSO porque un equipo fue descalificado.");
+        }
         if (req.getCedula() == null || req.getCedula().isBlank()) {
             throw new RuntimeException("La cedula del jugador es obligatoria.");
         }
@@ -134,6 +137,9 @@ public class PartidoAdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
         if (partido.getEstado() == EstadoPartido.FINALIZADO) {
             return toPartidoDTO(partido);
+        }
+        if (partido.getEstado() == EstadoPartido.DESCANSO) {
+            throw new RuntimeException("Este partido quedo en DESCANSO y no puede cerrarse con resultado.");
         }
         asegurarParticipantes(partido, partido.getEquipoLocalTorneo());
         asegurarParticipantes(partido, partido.getEquipoVisitanteTorneo());

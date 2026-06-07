@@ -5,5 +5,6 @@ public enum EstadoPartido {
     EN_CURSO,
     FINALIZADO,
     APLAZADO,
-    WO
+    WO,
+    DESCANSO
 }
