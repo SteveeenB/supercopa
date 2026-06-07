@@ -47,4 +47,13 @@ public class EquipoTorneo {
 
     @Column(name = "motivo_rechazo", length = 500)
     private String motivoRechazo;
+
+    @Column(name = "expulsado_por", length = 50)
+    private String expulsadoPor;
+
+    @Column(name = "fecha_expulsion")
+    private LocalDateTime fechaExpulsion;
+
+    @Column(name = "motivo_expulsion", length = 500)
+    private String motivoExpulsion;
 }

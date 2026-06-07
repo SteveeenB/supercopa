@@ -72,6 +72,23 @@ public class AdminTorneoController {
         return ResponseEntity.ok(torneoAdminService.rechazarInscripcion(torneoId, equipoTorneoId, req.getMotivo()));
     }
 
+    @PostMapping("/{torneoId}/inscripciones/{equipoTorneoId}/habilitar")
+    public ResponseEntity<InscripcionDTO> habilitarInscripcion(
+            @PathVariable UUID torneoId,
+            @PathVariable UUID equipoTorneoId) {
+        return ResponseEntity.ok(torneoAdminService.habilitarInscripcion(torneoId, equipoTorneoId));
+    }
+
+    @PostMapping("/{torneoId}/inscripciones/{equipoTorneoId}/expulsar")
+    public ResponseEntity<InscripcionDTO> expulsarEquipo(
+            @PathVariable UUID torneoId,
+            @PathVariable UUID equipoTorneoId,
+            @RequestBody RechazoRequestDTO req,
+            @AuthenticationPrincipal Jwt jwt) {
+        String admin = jwt.getClaimAsString("cedula");
+        return ResponseEntity.ok(torneoAdminService.expulsarEquipo(torneoId, equipoTorneoId, req.getMotivo(), admin));
+    }
+
     @PostMapping("/{torneoId}/fixture")
     public ResponseEntity<List<PartidoAdminDTO>> generarFixture(@PathVariable UUID torneoId) {
         List<Partido> creados = fixtureService.generar(torneoId);

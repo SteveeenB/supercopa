@@ -19,4 +19,5 @@ public class TorneoDisponibleDTO {
     private Boolean inscrito;
     private String estadoInscripcion;
     private UUID equipoTorneoId;
+    private String motivoExpulsion;
 }

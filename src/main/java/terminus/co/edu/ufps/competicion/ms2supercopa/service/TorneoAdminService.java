@@ -95,7 +95,10 @@ public class TorneoAdminService {
             return toInscripcionDTO(et);
         }
         if (et.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO) {
-            throw new RuntimeException("La inscripcion fue rechazada y no puede aprobarse.");
+            throw new RuntimeException("La inscripcion fue rechazada y no puede aprobarse. Usa 'Habilitar' para reabrirla.");
+        }
+        if (et.getEstadoInscripcion() == EstadoInscripcion.EXPULSADO) {
+            throw new RuntimeException("El equipo fue expulsado del torneo y no puede aprobarse.");
         }
         et.setEstadoInscripcion(EstadoInscripcion.APROBADO);
         et.setAprobadoPor(adminCedula != null ? adminCedula : "ADMIN");
@@ -107,14 +110,51 @@ public class TorneoAdminService {
     @Transactional
     public InscripcionDTO rechazarInscripcion(UUID torneoId, UUID equipoTorneoId, String motivo) {
         var et = cargarInscripcion(torneoId, equipoTorneoId);
-        if (et.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO) {
-            return toInscripcionDTO(et);
+        // Rechazar SOLO aplica a inscripciones pre-pago. Para sacar a un equipo ya aprobado,
+        // el flujo correcto es expulsar (motivo separado, va a 'Torneos', no a 'Pagos').
+        if (et.getEstadoInscripcion() != EstadoInscripcion.PENDIENTE_PAGO) {
+            if (et.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO) {
+                return toInscripcionDTO(et);
+            }
+            throw new RuntimeException("Solo se puede rechazar una inscripcion en estado PENDIENTE_PAGO. Para un equipo ya aprobado usa 'Expulsar'.");
         }
         if (motivo == null || motivo.isBlank()) {
             throw new RuntimeException("El motivo del rechazo es obligatorio.");
         }
         et.setEstadoInscripcion(EstadoInscripcion.RECHAZADO);
         et.setMotivoRechazo(motivo.trim());
+        equipoTorneoRepo.save(et);
+        return toInscripcionDTO(et);
+    }
+
+    @Transactional
+    public InscripcionDTO habilitarInscripcion(UUID torneoId, UUID equipoTorneoId) {
+        var et = cargarInscripcion(torneoId, equipoTorneoId);
+        if (et.getEstadoInscripcion() != EstadoInscripcion.RECHAZADO) {
+            throw new RuntimeException("Solo se puede habilitar una inscripcion en estado RECHAZADO.");
+        }
+        et.setEstadoInscripcion(EstadoInscripcion.PENDIENTE_PAGO);
+        et.setMotivoRechazo(null);
+        equipoTorneoRepo.save(et);
+        return toInscripcionDTO(et);
+    }
+
+    @Transactional
+    public InscripcionDTO expulsarEquipo(UUID torneoId, UUID equipoTorneoId, String motivo, String adminCedula) {
+        var et = cargarInscripcion(torneoId, equipoTorneoId);
+        if (et.getEstadoInscripcion() == EstadoInscripcion.EXPULSADO) {
+            return toInscripcionDTO(et);
+        }
+        if (et.getEstadoInscripcion() != EstadoInscripcion.APROBADO) {
+            throw new RuntimeException("Solo se puede expulsar un equipo en estado APROBADO.");
+        }
+        if (motivo == null || motivo.isBlank()) {
+            throw new RuntimeException("El motivo de la expulsion es obligatorio.");
+        }
+        et.setEstadoInscripcion(EstadoInscripcion.EXPULSADO);
+        et.setExpulsadoPor(adminCedula != null ? adminCedula : "ADMIN");
+        et.setFechaExpulsion(LocalDateTime.now());
+        et.setMotivoExpulsion(motivo.trim());
         equipoTorneoRepo.save(et);
         return toInscripcionDTO(et);
     }
@@ -140,6 +180,9 @@ public class TorneoAdminService {
                 .aprobadoPor(et.getAprobadoPor())
                 .motivoRechazo(et.getMotivoRechazo())
                 .fechaInscripcion(et.getFechaInscripcion())
+                .expulsadoPor(et.getExpulsadoPor())
+                .fechaExpulsion(et.getFechaExpulsion())
+                .motivoExpulsion(et.getMotivoExpulsion())
                 .build();
     }
 

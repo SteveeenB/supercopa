@@ -81,6 +81,7 @@ public class DelegadoService {
                     .inscrito(inscripcion.isPresent())
                     .estadoInscripcion(inscripcion.map(et -> et.getEstadoInscripcion().name()).orElse(null))
                     .equipoTorneoId(inscripcion.map(EquipoTorneo::getId).orElse(null))
+                    .motivoExpulsion(inscripcion.map(EquipoTorneo::getMotivoExpulsion).orElse(null))
                     .build();
         }).toList();
     }
@@ -102,6 +103,9 @@ public class DelegadoService {
         }
         if (equipoTorneoRepo.findByTorneoIdAndEquipoId(torneoId, equipo.getId()).isPresent()) {
             throw new RuntimeException("El equipo ya esta inscrito en este torneo.");
+        }
+        if (equipoTorneoRepo.existsByEquipoIdAndEstadoInscripcion(equipo.getId(), EstadoInscripcion.EXPULSADO)) {
+            throw new RuntimeException("Este equipo fue expulsado de un torneo y no puede volver a inscribirse.");
         }
 
         var et = EquipoTorneo.builder()

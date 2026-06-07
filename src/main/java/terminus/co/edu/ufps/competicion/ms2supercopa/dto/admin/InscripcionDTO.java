@@ -20,4 +20,7 @@ public class InscripcionDTO {
     private String aprobadoPor;
     private String motivoRechazo;
     private LocalDateTime fechaInscripcion;
+    private String expulsadoPor;
+    private LocalDateTime fechaExpulsion;
+    private String motivoExpulsion;
 }
