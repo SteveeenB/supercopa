@@ -9,10 +9,13 @@ import java.time.LocalDateTime;
 /**
  * Perfil deportivo + cosmético del jugador en MS2.
  *
- * Los datos académicos oficiales (nombre legal, correo, rol académico,
- * código universitario, semestre) viven en MS1 (padrón). MS2 consulta MS1
- * vía Ms1JugadoresClient cuando los necesita y los snapshotea en
- * {@link JugadorEquipo} al momento de inscripción para reportes históricos.
+ * Los datos académicos oficiales (rol académico, código universitario,
+ * semestre) viven en MS1 (padrón) y se snapshotean en {@link JugadorEquipo}
+ * al momento de inscripción para reportes históricos.
+ *
+ * Nombre y correo se copian del padrón MS1 al crear la fila local porque la
+ * tabla los exige NOT NULL — sirven como display si MS1 no responde, pero la
+ * fuente de verdad sigue siendo MS1.
  */
 @Data
 @Builder
@@ -25,6 +28,12 @@ public class Jugador {
     @Id
     @Column(length = 20)
     private String cedula;
+
+    @Column(nullable = false, length = 150)
+    private String nombre;
+
+    @Column(length = 150)
+    private String correo;
 
     @Column(name = "altura_cm")
     private Integer alturaCm;

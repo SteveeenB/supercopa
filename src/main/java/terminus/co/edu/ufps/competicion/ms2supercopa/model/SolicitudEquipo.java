@@ -9,9 +9,8 @@ import java.util.UUID;
 /**
  * Solicitud de un jugador para ingresar al plantel de un equipo en un torneo.
  *
- * Solo conserva la cédula como identificador del solicitante. Cuando se
- * necesita mostrar nombre o correo en la UI del delegado, MS2 los obtiene
- * vía Ms1JugadoresClient (fuente de verdad = padrón MS1).
+ * Nombre y correo se snapshotean del padrón MS1 al crear porque la tabla
+ * los exige NOT NULL — sirven como display estable aunque MS1 cambie.
  */
 @Data
 @Builder
@@ -35,6 +34,12 @@ public class SolicitudEquipo {
 
     @Column(nullable = false, length = 20)
     private String cedula;
+
+    @Column(nullable = false, length = 150)
+    private String nombre;
+
+    @Column(length = 150)
+    private String correo;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

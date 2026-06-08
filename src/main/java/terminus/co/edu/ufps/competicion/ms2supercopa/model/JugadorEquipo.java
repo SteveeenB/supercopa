@@ -59,6 +59,18 @@ public class JugadorEquipo {
     @Column(name = "rol_jugador_snapshot", length = 20)
     private RolJugador rolJugadorSnapshot;
 
+    // Snapshot deportivo al momento de inscripcion. Permite que estadisticas
+    // historicas (ej. "valla menos vencida") respeten la posicion que el
+    // jugador tenia entonces, aunque hoy haya editado su perfil.
+    @Column(name = "altura_cm_snapshot")
+    private Integer alturaCmSnapshot;
+
+    @Column(name = "pierna_habil_snapshot", length = 20)
+    private String piernaHabilSnapshot;
+
+    @Column(name = "posicion_snapshot", length = 30)
+    private String posicionSnapshot;
+
     @Column(name = "snapshot_at")
     private LocalDateTime snapshotAt;
 }

@@ -38,10 +38,9 @@ public class DelegadoService {
         if (req.getNombre() == null || req.getNombre().isBlank()) {
             throw new RuntimeException("El nombre del equipo es obligatorio.");
         }
-        // Valida que el delegado este en el padron oficial MS1 (necesario para auto-inscripcion).
-        ms1Client.getJugadorPorCedula(delegadoCedula)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "El delegado no esta en el padron oficial. Pide al admin que lo cargue via CSV."));
+        // Garantiza la fila local de jugador (con nombre del padron MS1) ANTES
+        // de crear el equipo: la tabla equipos tiene FK a jugadores.
+        garantizarJugadorLocal(delegadoCedula);
 
         // Un delegado solo puede tener un equipo base.
         var existente = equipoRepo.findByDelegadoCedula(delegadoCedula);
@@ -56,6 +55,27 @@ public class DelegadoService {
                 .build();
         equipoRepo.save(equipo);
         return EquipoDTO.builder().id(equipo.getId()).nombre(equipo.getNombre()).build();
+    }
+
+    /**
+     * Garantiza una fila local en supercopa.jugadores para la cedula dada.
+     * Si no existe, la crea copiando nombre y correo del padron MS1. Si MS1
+     * no conoce la cedula, lanza error: nunca queremos jugadores locales con
+     * nombre vacio (la tabla lo exige NOT NULL y el frontend muestra el nombre
+     * en estadisticas/eventos).
+     */
+    private Jugador garantizarJugadorLocal(String cedula) {
+        return jugadorRepo.findById(cedula).orElseGet(() -> {
+            var padron = ms1Client.getJugadorPorCedula(cedula)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "La cedula " + cedula + " no esta en el padron oficial MS1. "
+                                    + "Pide al admin que la cargue antes de continuar."));
+            return jugadorRepo.save(Jugador.builder()
+                    .cedula(cedula)
+                    .nombre(padron.getNombre())
+                    .correo(padron.getCorreo())
+                    .build());
+        });
     }
 
     @Transactional(readOnly = true)
@@ -118,12 +138,24 @@ public class DelegadoService {
             var padron = ms1Client.getJugadorPorCedula(delegadoCedula)
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Delegado no esta en el padron oficial MS1."));
+            // jugador_equipo.cedula tiene FK a jugadores, asi que garantizamos
+            // la fila local antes de insertar JugadorEquipo.
+            var jugadorLocal = garantizarJugadorLocal(delegadoCedula);
+            if (jugadorLocal.getAlturaCm() == null
+                    || jugadorLocal.getPiernaHabil() == null || jugadorLocal.getPiernaHabil().isBlank()
+                    || jugadorLocal.getPosicion() == null || jugadorLocal.getPosicion().isBlank()) {
+                throw new RuntimeException(
+                        "Completa tu perfil deportivo (altura, pierna habil, posicion) antes de inscribir el equipo.");
+            }
             var je = JugadorEquipo.builder()
                     .cedula(delegadoCedula)
                     .torneo(torneo)
                     .equipoTorneo(et)
                     .fechaInicio(LocalDate.now())
                     .estado(EstadoMembresia.ACTIVO)
+                    .alturaCmSnapshot(jugadorLocal.getAlturaCm())
+                    .piernaHabilSnapshot(jugadorLocal.getPiernaHabil())
+                    .posicionSnapshot(jugadorLocal.getPosicion())
                     .build();
             poblarSnapshots(je, padron);
             jugadorEquipoRepo.save(je);
@@ -175,9 +207,14 @@ public class DelegadoService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cedula no encontrada en el padron oficial. Pide al admin que la cargue."));
 
-        // Asegurar que exista Jugador local (para campos cosmeticos/deportivos opcionales).
+        // Asegurar que exista Jugador local. Tomamos nombre/correo del padron
+        // porque la tabla los exige NOT NULL y porque varias FKs apuntan aqui.
         var jugador = jugadorRepo.findById(req.getCedula())
-                .orElseGet(() -> jugadorRepo.save(Jugador.builder().cedula(req.getCedula()).build()));
+                .orElseGet(() -> jugadorRepo.save(Jugador.builder()
+                        .cedula(req.getCedula())
+                        .nombre(padron.getNombre())
+                        .correo(padron.getCorreo())
+                        .build()));
 
         if (jugadorEquipoRepo.existsByCedulaAndTorneoIdAndEstado(
                 req.getCedula(), et.getTorneo().getId(), EstadoMembresia.ACTIVO)) {

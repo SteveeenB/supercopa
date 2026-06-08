@@ -7,9 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import terminus.co.edu.ufps.competicion.exception.ResourceNotFoundException;
 import terminus.co.edu.ufps.competicion.ms2supercopa.client.JugadorPadronDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.client.Ms1JugadoresClient;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.EventoDTO;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.EventoRequest;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.PartidoAdminDTO;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.*;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.*;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.*;
 
@@ -35,6 +33,8 @@ public class PartidoAdminService {
                 .map(this::toPartidoDTO)
                 .toList();
     }
+
+    // ── Eventos ─────────────────────────────────────────────────
 
     @Transactional
     public EventoDTO crearEvento(UUID partidoId, EventoRequest req) {
@@ -148,6 +148,155 @@ public class PartidoAdminService {
         return toPartidoDTO(partido);
     }
 
+    // ── Alineación ─────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<PartidoJugadorDTO> listarAlineacion(UUID partidoId) {
+        partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        return partidoJugadorRepo.findByPartidoId(partidoId)
+                .stream()
+                .map(this::toPartidoJugadorDTO)
+                .toList();
+    }
+
+    @Transactional
+    public void agregarJugador(UUID partidoId, String cedula, UUID equipoTorneoId) {
+        var partido = partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
+            throw new RuntimeException("No se puede modificar la alineacion de un partido cerrado.");
+        }
+        var equipoTorneo = equipoTorneoRepo.findById(equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Equipo del torneo no encontrado."));
+        var jugador = jugadorRepo.findById(cedula)
+                .orElseThrow(() -> new ResourceNotFoundException("Jugador no encontrado."));
+
+        var existente = partidoJugadorRepo.findByPartidoIdAndJugadorCedula(partidoId, cedula);
+        if (existente.isPresent()) {
+            var pj = existente.get();
+            pj.setJugo(true);
+            partidoJugadorRepo.save(pj);
+        } else {
+            partidoJugadorRepo.save(PartidoJugador.builder()
+                    .partido(partido)
+                    .jugador(jugador)
+                    .equipoTorneo(equipoTorneo)
+                    .jugo(true)
+                    .goles(0)
+                    .build());
+        }
+    }
+
+    @Transactional
+    public void quitarJugador(UUID partidoId, String cedula) {
+        var partido = partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
+            throw new RuntimeException("No se puede modificar la alineacion de un partido cerrado.");
+        }
+        var pj = partidoJugadorRepo.findByPartidoIdAndJugadorCedula(partidoId, cedula)
+                .orElseThrow(() -> new ResourceNotFoundException("El jugador no esta en la alineacion."));
+        partidoJugadorRepo.delete(pj);
+    }
+
+    @Transactional
+    public void agregarTodosJugadores(UUID partidoId, UUID equipoTorneoId) {
+        var partido = partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
+            throw new RuntimeException("No se puede modificar la alineacion de un partido cerrado.");
+        }
+        var equipoTorneo = equipoTorneoRepo.findById(equipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Equipo del torneo no encontrado."));
+        var miembros = jugadorEquipoRepo.findByEquipoTorneoIdOrderByFechaInicioAsc(equipoTorneoId);
+        for (var je : miembros) {
+            if (je.getEstado() != EstadoMembresia.ACTIVO) continue;
+            var existente = partidoJugadorRepo.findByPartidoIdAndJugadorCedula(partidoId, je.getCedula());
+            if (existente.isEmpty()) {
+                var jugador = jugadorRepo.findById(je.getCedula()).orElse(null);
+                if (jugador == null) continue;
+                partidoJugadorRepo.save(PartidoJugador.builder()
+                        .partido(partido)
+                        .jugador(jugador)
+                        .equipoTorneo(equipoTorneo)
+                        .jugo(true)
+                        .goles(0)
+                        .build());
+            } else {
+                var pj = existente.get();
+                pj.setJugo(true);
+                partidoJugadorRepo.save(pj);
+            }
+        }
+    }
+
+    // ── WalkOver / Cancelar ────────────────────────────────────
+
+    @Transactional
+    public PartidoAdminDTO declararWO(UUID partidoId, UUID ganadorEquipoTorneoId, String motivo) {
+        var partido = partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
+            throw new RuntimeException("El partido ya esta cerrado.");
+        }
+
+        var ganador = equipoTorneoRepo.findById(ganadorEquipoTorneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Equipo del torneo no encontrado."));
+
+        boolean esLocal = partido.getEquipoLocalTorneo().getId().equals(ganador.getId());
+        boolean esVisitante = partido.getEquipoVisitanteTorneo().getId().equals(ganador.getId());
+        if (!esLocal && !esVisitante) {
+            throw new RuntimeException("El equipo ganador no participa en este partido.");
+        }
+
+        // Limpiar eventos previos
+        eventoRepo.deleteAll(eventoRepo.findByPartidoIdOrderByOrdenAsc(partidoId));
+
+        // Crear goles de WO: 3-0
+        for (int i = 0; i < 3; i++) {
+            eventoRepo.save(EventoPartido.builder()
+                    .partido(partido)
+                    .cedula(null)
+                    .equipoTorneo(ganador)
+                    .tipoEvento(TipoEvento.GOL)
+                    .orden(i + 1)
+                    .build());
+        }
+
+        partido.setEstado(EstadoPartido.WO);
+        partidoRepo.save(partido);
+
+        limpiarAlineacion(partidoId);
+
+        return toPartidoDTO(partido);
+    }
+
+    @Transactional
+    public void cancelarPartido(UUID partidoId, String motivo) {
+        var partido = partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
+            throw new RuntimeException("No se puede cancelar un partido ya cerrado.");
+        }
+        partido.setEstado(EstadoPartido.APLAZADO);
+        partidoRepo.save(partido);
+    }
+
+    @Transactional
+    public PartidoAdminDTO reabrirPartido(UUID partidoId) {
+        var partido = partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        if (partido.getEstado() != EstadoPartido.FINALIZADO) {
+            throw new RuntimeException("Solo se puede reabrir un partido en estado FINALIZADO.");
+        }
+        partido.setEstado(EstadoPartido.EN_CURSO);
+        partidoRepo.save(partido);
+        return toPartidoDTO(partido);
+    }
+
+    // ── Privados ───────────────────────────────────────────────
+
     private void asegurarParticipantes(Partido partido, EquipoTorneo equipoTorneo) {
         var miembros = jugadorEquipoRepo.findByEquipoTorneoIdOrderByFechaInicioAsc(equipoTorneo.getId());
         for (var je : miembros) {
@@ -165,6 +314,24 @@ public class PartidoAdminService {
                         .build());
             }
         }
+    }
+
+    private void limpiarAlineacion(UUID partidoId) {
+        var alineacion = partidoJugadorRepo.findByPartidoId(partidoId);
+        partidoJugadorRepo.deleteAll(alineacion);
+    }
+
+    private PartidoJugadorDTO toPartidoJugadorDTO(PartidoJugador pj) {
+        return PartidoJugadorDTO.builder()
+                .id(pj.getId())
+                .cedula(pj.getJugador().getCedula())
+                .jugadorNombre(resolverNombreReal(pj.getJugador().getCedula(),
+                        pj.getEquipoTorneo().getTorneo().getId()))
+                .equipoTorneoId(pj.getEquipoTorneo().getId())
+                .equipoNombre(pj.getEquipoTorneo().getEquipo().getNombre())
+                .goles(pj.getGoles())
+                .jugo(pj.getJugo())
+                .build();
     }
 
     public PartidoAdminDTO toPartidoDTO(Partido p) {
@@ -200,9 +367,6 @@ public class PartidoAdminService {
                 .build();
     }
 
-    /**
-     * Nombre real del jugador para timelines/eventos del admin
-     */
     private String resolverNombreReal(EventoPartido e) {
         UUID torneoId = e.getEquipoTorneo().getTorneo().getId();
         String snapshot = jugadorEquipoRepo
@@ -212,6 +376,19 @@ public class PartidoAdminService {
                 .orElse(null);
         if (snapshot != null) return snapshot;
         return ms1Client.getJugadorPorCedula(e.getCedula())
+                .map(JugadorPadronDTO::getNombre)
+                .orElse(null);
+    }
+
+    private String resolverNombreReal(String cedula, UUID torneoId) {
+        if (cedula == null) return null;
+        String snapshot = jugadorEquipoRepo
+                .findByCedulaAndTorneoId(cedula, torneoId)
+                .map(JugadorEquipo::getNombreSnapshot)
+                .filter(s -> s != null && !s.isBlank())
+                .orElse(null);
+        if (snapshot != null) return snapshot;
+        return ms1Client.getJugadorPorCedula(cedula)
                 .map(JugadorPadronDTO::getNombre)
                 .orElse(null);
     }

@@ -7,6 +7,7 @@ import terminus.co.edu.ufps.competicion.exception.ResourceNotFoundException;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EquipoTorneo;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoInscripcion;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoPartido;
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoTorneo;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.Partido;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.EquipoTorneoRepository;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.PartidoRepository;
@@ -34,6 +35,9 @@ public class FixtureService {
     public List<Partido> generar(UUID torneoId) {
         var torneo = torneoRepo.findById(torneoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Torneo no encontrado."));
+        if (torneo.getEstado() != EstadoTorneo.EN_CURSO) {
+            throw new RuntimeException("El torneo debe estar EN_CURSO para generar fixture.");
+        }
         if (partidoRepo.existsByTorneoId(torneoId)) {
             throw new RuntimeException("El torneo ya tiene fixture generado.");
         }

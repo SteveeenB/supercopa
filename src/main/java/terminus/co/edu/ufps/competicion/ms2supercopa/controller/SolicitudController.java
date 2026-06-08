@@ -28,12 +28,7 @@ public class SolicitudController {
             @RequestBody SolicitudRequestDTO req,
             @AuthenticationPrincipal Jwt jwt) {
         String cedula = jwt.getClaimAsString("cedula");
-        return ResponseEntity.ok(solicitudService.crear(
-                cedula,
-                req.getEquipoTorneoId(),
-                req.getAlturaCm(),
-                req.getPiernaHabil(),
-                req.getPosicion()));
+        return ResponseEntity.ok(solicitudService.crear(cedula, req.getEquipoTorneoId()));
     }
 
     @GetMapping("/mis-solicitudes")

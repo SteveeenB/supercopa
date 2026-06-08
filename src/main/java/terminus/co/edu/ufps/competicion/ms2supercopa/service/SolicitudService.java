@@ -31,11 +31,7 @@ public class SolicitudService {
     // ──────────────────────────────────────────────
 
     @Transactional
-    public SolicitudDTO crear(String cedula,
-                              UUID equipoTorneoId,
-                              Integer alturaCm,
-                              String piernaHabil,
-                              String posicion) {
+    public SolicitudDTO crear(String cedula, UUID equipoTorneoId) {
         if (equipoTorneoId == null) {
             throw new RuntimeException("equipoTorneoId es obligatorio.");
         }
@@ -50,15 +46,25 @@ public class SolicitudService {
             throw new RuntimeException("El torneo no esta aceptando jugadores.");
         }
 
-        // El perfil deportivo vive en MS2. Los datos academicos viven en MS1
-        // y NO se replican aqui (se snapshotean al aprobar la solicitud).
-        var jugador = jugadorRepo.findById(cedula).orElseGet(() -> Jugador.builder()
-                .cedula(cedula)
-                .build());
-        if (alturaCm != null) jugador.setAlturaCm(alturaCm);
-        if (piernaHabil != null && !piernaHabil.isBlank()) jugador.setPiernaHabil(piernaHabil.trim());
-        if (posicion != null && !posicion.isBlank()) jugador.setPosicion(posicion.trim());
-        jugadorRepo.save(jugador);
+        // El perfil deportivo (altura/pierna/posicion) lo captura el modal
+        // bloqueante de bienvenida ANTES de llegar aqui. Aqui solo se valida
+        // que ya este completo (defensa en profundidad si el frontend falla).
+        var jugador = jugadorRepo.findById(cedula).orElseGet(() -> {
+            var padron = ms1Client.getJugadorPorCedula(cedula)
+                    .orElseThrow(() -> new RuntimeException(
+                            "La cedula " + cedula + " no esta en el padron oficial MS1. "
+                                    + "Pide al admin que la cargue antes de unirte a un equipo."));
+            return jugadorRepo.save(Jugador.builder()
+                    .cedula(cedula)
+                    .nombre(padron.getNombre())
+                    .correo(padron.getCorreo())
+                    .build());
+        });
+        if (jugador.getAlturaCm() == null
+                || jugador.getPiernaHabil() == null || jugador.getPiernaHabil().isBlank()
+                || jugador.getPosicion() == null || jugador.getPosicion().isBlank()) {
+            throw new RuntimeException("Completa tu perfil deportivo antes de solicitar ingreso.");
+        }
 
         // Validaciones de negocio
         if (jugadorEquipoRepo.existsByCedulaAndTorneoId(cedula, torneo.getId())) {
@@ -69,8 +75,12 @@ public class SolicitudService {
             throw new RuntimeException("Ya tienes una solicitud activa para este torneo.");
         }
 
+        // nombre y correo son NOT NULL en la tabla; se snapshotean del Jugador
+        // local (que ya los tomo del padron MS1 al crearlo arriba).
         var solicitud = SolicitudEquipo.builder()
                 .cedula(cedula)
+                .nombre(jugador.getNombre())
+                .correo(jugador.getCorreo())
                 .torneo(torneo)
                 .equipoTorneo(equipoTorneo)
                 .build();
@@ -113,7 +123,7 @@ public class SolicitudService {
             throw new RuntimeException("El jugador ya pertenece a un equipo en este torneo.");
         }
 
-        // Snapshot academico desde MS1 para reportes historicos.
+        // Snapshot academico desde MS1 + snapshot deportivo del Jugador local.
         var je = JugadorEquipo.builder()
                 .cedula(solicitud.getCedula())
                 .torneo(solicitud.getTorneo())
@@ -122,6 +132,7 @@ public class SolicitudService {
                 .estado(EstadoMembresia.ACTIVO)
                 .build();
         poblarSnapshotsDesdeMs1(je, solicitud.getCedula());
+        poblarSnapshotDeportivo(je, solicitud.getCedula());
         jugadorEquipoRepo.save(je);
 
         solicitud.setEstado(EstadoSolicitud.APROBADA);
@@ -146,21 +157,37 @@ public class SolicitudService {
     }
 
     /**
-     * Poblar snapshots academicos. Si MS1 no devuelve la cedula (esta caido
-     * o no esta en padron) los snapshots quedan null y el reporte de MS4
-     * los excluira de las agregaciones por semestre.
+     * Poblar snapshots academicos desde MS1. Si MS1 no responde o la cedula
+     * no esta en el padron, lanzamos error: nunca queremos un JugadorEquipo
+     * con snapshot null porque luego se muestra la cedula en eventos/plantel
+     * en lugar del nombre real.
      */
-    private void poblarSnapshotsDesdeMs1(JugadorEquipo je, String cedula) {
-        ms1Client.getJugadorPorCedula(cedula).ifPresent(p -> {
-            je.setNombreSnapshot(p.getNombre());
-            je.setSemestreSnapshot(p.getSemestre());
-            if (p.getRolJugador() != null) {
-                try {
-                    je.setRolJugadorSnapshot(RolJugador.valueOf(p.getRolJugador()));
-                } catch (IllegalArgumentException ignored) { }
-            }
-            je.setSnapshotAt(LocalDateTime.now());
+    /**
+     * Snapshot deportivo desde el Jugador local. Si el perfil esta incompleto
+     * en este punto es un bug del caller (el modal bloqueante deberia haber
+     * impedido llegar hasta aqui); aun asi guardamos null sin romper.
+     */
+    private void poblarSnapshotDeportivo(JugadorEquipo je, String cedula) {
+        jugadorRepo.findById(cedula).ifPresent(j -> {
+            je.setAlturaCmSnapshot(j.getAlturaCm());
+            je.setPiernaHabilSnapshot(j.getPiernaHabil());
+            je.setPosicionSnapshot(j.getPosicion());
         });
+    }
+
+    private void poblarSnapshotsDesdeMs1(JugadorEquipo je, String cedula) {
+        var p = ms1Client.getJugadorPorCedula(cedula)
+                .orElseThrow(() -> new RuntimeException(
+                        "La cedula " + cedula + " no esta en el padron oficial MS1. "
+                                + "Pide al admin que la cargue antes de aprobar la solicitud."));
+        je.setNombreSnapshot(p.getNombre());
+        je.setSemestreSnapshot(p.getSemestre());
+        if (p.getRolJugador() != null) {
+            try {
+                je.setRolJugadorSnapshot(RolJugador.valueOf(p.getRolJugador()));
+            } catch (IllegalArgumentException ignored) { }
+        }
+        je.setSnapshotAt(LocalDateTime.now());
     }
 
     private void validarDelegadoEsDueno(SolicitudEquipo solicitud, String cedulaDelegado) {

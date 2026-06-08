@@ -43,9 +43,24 @@ public class PerfilService {
      */
     @Transactional
     public PerfilResponseDTO obtenerPerfil(String cedula, String nombre, String email) {
-        // El Jugador local solo guarda datos cosmeticos/deportivos. Si no existe, lo creamos vacio.
+        // El Jugador local guarda datos cosmeticos/deportivos. Si no existe, lo
+        // creamos con nombre/correo: del padron MS1 si responde, del JWT como fallback
+        // (la tabla exige nombre NOT NULL y varias FKs apuntan aqui).
         var jugador = jugadorRepository.findById(cedula)
-                .orElseGet(() -> jugadorRepository.save(Jugador.builder().cedula(cedula).build()));
+                .orElseGet(() -> {
+                    var padron = ms1Client.getJugadorPorCedula(cedula).orElse(null);
+                    String nombreLocal = padron != null && padron.getNombre() != null
+                            ? padron.getNombre()
+                            : (nombre != null && !nombre.isBlank() ? nombre : cedula);
+                    String correoLocal = padron != null && padron.getCorreo() != null
+                            ? padron.getCorreo()
+                            : email;
+                    return jugadorRepository.save(Jugador.builder()
+                            .cedula(cedula)
+                            .nombre(nombreLocal)
+                            .correo(correoLocal)
+                            .build());
+                });
 
         // Nombre a mostrar: apodo > nombre oficial del padron MS1 > nombre del JWT (fallback).
         String nombreMostrar;
@@ -118,11 +133,51 @@ public class PerfilService {
         return PerfilResponseDTO.builder()
                 .cedula(jugador.getCedula())
                 .nombre(nombreMostrar)
+                .alturaCm(jugador.getAlturaCm())
+                .piernaHabil(jugador.getPiernaHabil())
+                .posicion(jugador.getPosicion())
                 .equipos(equipos)
                 .resumen(resumen)
                 .titulos(titulos)
                 .partidos(partidos)
                 .build();
+    }
+
+    private static final java.util.Set<String> PIERNAS_VALIDAS =
+            java.util.Set.of("DERECHA", "IZQUIERDA", "AMBIDIESTRO");
+    private static final java.util.Set<String> POSICIONES_VALIDAS =
+            java.util.Set.of("PORTERO", "DEFENSA", "MEDIOCAMPISTA", "DELANTERO");
+
+    /**
+     * Persiste los datos deportivos del jugador. Tipicamente lo invoca el
+     * modal bloqueante de bienvenida la primera vez, y el form de edicion
+     * del tab "Perfil" en ediciones posteriores.
+     */
+    @Transactional
+    public PerfilResponseDTO actualizarPerfilDeportivo(String cedula, String nombreJwt, String emailJwt,
+                                                       Integer alturaCm, String piernaHabil, String posicion) {
+        if (alturaCm == null || alturaCm < 100 || alturaCm > 250) {
+            throw new RuntimeException("Altura debe estar entre 100 y 250 cm.");
+        }
+        if (piernaHabil == null || !PIERNAS_VALIDAS.contains(piernaHabil)) {
+            throw new RuntimeException("piernaHabil debe ser DERECHA, IZQUIERDA o AMBIDIESTRO.");
+        }
+        if (posicion == null || !POSICIONES_VALIDAS.contains(posicion)) {
+            throw new RuntimeException("posicion debe ser PORTERO, DEFENSA, MEDIOCAMPISTA o DELANTERO.");
+        }
+
+        // Reusamos la logica de obtenerPerfil para garantizar la fila local
+        // (nombre/correo del padron, FKs validas, etc.).
+        obtenerPerfil(cedula, nombreJwt, emailJwt);
+
+        var jugador = jugadorRepository.findById(cedula)
+                .orElseThrow(() -> new RuntimeException("Perfil no encontrado para cedula " + cedula));
+        jugador.setAlturaCm(alturaCm);
+        jugador.setPiernaHabil(piernaHabil);
+        jugador.setPosicion(posicion);
+        jugadorRepository.save(jugador);
+
+        return obtenerPerfil(cedula, nombreJwt, emailJwt);
     }
 
     private PerfilPartidoDTO toPartidoDTO(PartidoJugador pj, Map<UUID, List<String>> tarjetasPorPartido) {
