@@ -11,9 +11,12 @@ import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.*;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.*;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.*;
 
+import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 import java.util.UUID;
+import terminus.co.edu.ufps.competicion.ms3finanzas.service.MultaService;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PartidoAdminService {
@@ -27,6 +30,7 @@ public class PartidoAdminService {
     private final Ms1JugadoresClient ms1Client;
     private final FixtureService fixtureService;
     private final BracketAutoFillService bracketAutoFillService;
+    private final terminus.co.edu.ufps.competicion.ms3finanzas.service.MultaService multaService;
 
     @Transactional(readOnly = true)
     public List<PartidoAdminDTO> listarPorTorneo(UUID torneoId) {
@@ -167,6 +171,33 @@ public class PartidoAdminService {
             }
         }
 
+        // Generar multas automaticas si no es WO ni DESCANSO ni SIN_PAGO_ARBITRAJE
+        if (partido.getEstado() != EstadoPartido.WO
+                && partido.getEstado() != EstadoPartido.DESCANSO
+                && partido.getTipoCierre() == null) {
+            try {
+                multaService.generarPorPartido(partido.getId());
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(PartidoAdminService.class)
+                        .error("Multa gen fallo para partido {}: {}", partido.getId(), e.getMessage(), e);
+            }
+        }
+
+        // Decrementar suspensiones de ambos equipos si el partido finalizo normalmente
+        if (partido.getEstado() == EstadoPartido.FINALIZADO && partido.getTipoCierre() == null) {
+            try {
+                if (partido.getEquipoLocalTorneo() != null) {
+                    multaService.decrementarSuspensiones(partido.getEquipoLocalTorneo().getId());
+                }
+                if (partido.getEquipoVisitanteTorneo() != null) {
+                    multaService.decrementarSuspensiones(partido.getEquipoVisitanteTorneo().getId());
+                }
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(PartidoAdminService.class)
+                        .error("Decremento de suspension fallo para partido {}: {}", partido.getId(), e.getMessage(), e);
+            }
+        }
+
         // Si el partido que se cierra es de fase GRUPOS, intentar poblar el bracket.
         // Try/catch defensivo: si falla, no rompe el cierre del partido.
         if (partido.getFase() == terminus.co.edu.ufps.competicion.ms2supercopa.model.FaseTorneo.GRUPOS
@@ -202,6 +233,12 @@ public class PartidoAdminService {
         if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
             throw new RuntimeException("No se puede modificar la alineacion de un partido cerrado.");
         }
+
+        var el = multaService.consultarElegibilidad(cedula, partido.getTorneo().getId());
+        if (!el.apto()) {
+            throw new RuntimeException("Jugador no apto: " + el.formatMotivos());
+        }
+
         var equipoTorneo = equipoTorneoRepo.findById(equipoTorneoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Equipo del torneo no encontrado."));
         var jugador = jugadorRepo.findById(cedula)
@@ -319,6 +356,28 @@ public class PartidoAdminService {
     }
 
     @Transactional
+    public PartidoAdminDTO cerrarSinPagoArbitraje(UUID partidoId, String motivo, UUID equipoNoPagoTorneoId) {
+        var partido = partidoRepo.findById(partidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
+        if (partido.getEstado() == EstadoPartido.FINALIZADO || partido.getEstado() == EstadoPartido.WO) {
+            throw new RuntimeException("El partido ya esta cerrado.");
+        }
+
+        // Limpiar eventos previos y alineacion
+        eventoRepo.deleteAll(eventoRepo.findByPartidoIdOrderByOrdenAsc(partidoId));
+        limpiarAlineacion(partidoId);
+
+        partido.setEstado(EstadoPartido.FINALIZADO);
+        partido.setTipoCierre("SIN_PAGO_ARBITRAJE");
+        partidoRepo.save(partido);
+
+        log.warn("Partido {} cerrado SIN_PAGO_ARBITRAJE. motivo={}, equipoNoPago={}",
+                partidoId, motivo, equipoNoPagoTorneoId);
+
+        return toPartidoDTO(partido);
+    }
+
+    @Transactional
     public PartidoAdminDTO reabrirPartido(UUID partidoId) {
         var partido = partidoRepo.findById(partidoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Partido no encontrado."));
@@ -389,6 +448,7 @@ public class PartidoAdminService {
                 .fase(p.getFase() != null ? p.getFase().name() : null)
                 .jornada(p.getJornada())
                 .grupo(p.getGrupo())
+                .torneoId(p.getTorneo() != null ? p.getTorneo().getId() : null)
                 .build();
     }
 

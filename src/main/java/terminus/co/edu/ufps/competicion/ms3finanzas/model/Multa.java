@@ -66,4 +66,26 @@ public class Multa {
 
     @Column(name = "fecha_pago")
     private LocalDateTime fechaPago;
+
+    @Column(name = "partidos_suspension_restantes")
+    private Integer partidosSuspensionRestantes;
+
+    @Column(name = "pagado_por_cedula", length = 20)
+    private String pagadoPorCedula;
+
+    @Column(name = "partido_pago_id")
+    private UUID partidoPagoId;
+
+    @Builder.Default
+    @Column(name = "habilitado_manual", nullable = false)
+    private Boolean habilitadoManual = false;
+
+    @Column(name = "habilitado_por_cedula", length = 20)
+    private String habilitadoPorCedula;
+
+    @Column(name = "habilitado_en")
+    private LocalDateTime habilitadoEn;
+
+    @Column(name = "motivo_habilitacion", length = 200)
+    private String motivoHabilitacion;
 }

@@ -80,6 +80,14 @@ public class AdminPartidoController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{partidoId}/cerrar-sin-pago-arbitraje")
+    public ResponseEntity<PartidoAdminDTO> cerrarSinPagoArbitraje(
+            @PathVariable UUID partidoId,
+            @RequestBody SinPagoArbitrajeRequest req) {
+        return ResponseEntity.ok(partidoAdminService.cerrarSinPagoArbitraje(
+                partidoId, req.getMotivo(), req.getEquipoNoPagoTorneoId()));
+    }
+
     // ── Admin-only ─────────────────────────────────────────────
 
     @PostMapping("/{partidoId}/reabrir")

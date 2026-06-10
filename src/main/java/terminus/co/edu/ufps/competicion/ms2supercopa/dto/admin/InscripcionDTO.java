@@ -2,6 +2,7 @@ package terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -23,4 +24,5 @@ public class InscripcionDTO {
     private String expulsadoPor;
     private LocalDateTime fechaExpulsion;
     private String motivoExpulsion;
+    private BigDecimal montoInscripcion;
 }

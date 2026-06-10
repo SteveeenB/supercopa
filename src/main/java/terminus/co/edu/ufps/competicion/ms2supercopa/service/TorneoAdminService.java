@@ -24,12 +24,19 @@ import terminus.co.edu.ufps.competicion.ms2supercopa.repository.PartidoJugadorRe
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.PartidoRepository;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.TorneoRepository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.*;
+import terminus.co.edu.ufps.competicion.ms2supercopa.repository.TituloRepository;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TorneoAdminService {
@@ -39,6 +46,7 @@ public class TorneoAdminService {
     private final PartidoRepository partidoRepo;
     private final PartidoJugadorRepository partidoJugadorRepo;
     private final EventoPartidoRepository eventoPartidoRepo;
+    private final TituloRepository tituloRepo;
 
     @Transactional
     public TorneoDTO crear(CrearTorneoRequest req) {
@@ -309,6 +317,93 @@ public class TorneoAdminService {
         return et;
     }
 
+    // ── Cierre de torneo ─────────────────────────────────────────
+
+    @Transactional
+    public TorneoDTO cerrarTorneo(UUID torneoId) {
+        var torneo = torneoRepo.findById(torneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Torneo no encontrado."));
+        if (torneo.getEstado() != EstadoTorneo.EN_CURSO) {
+            throw new RuntimeException("Solo se puede cerrar un torneo en estado EN_CURSO.");
+        }
+
+        var partidos = partidoRepo.findByTorneoId(torneoId);
+        for (Partido p : partidos) {
+            EstadoPartido e = p.getEstado();
+            if (e != EstadoPartido.FINALIZADO && e != EstadoPartido.WO
+                    && e != EstadoPartido.DESCANSO) {
+                throw new RuntimeException("No se puede cerrar el torneo: el partido " + p.getId()
+                        + " aun no esta en estado terminal (" + e + ").");
+            }
+        }
+
+        torneo.setEstado(EstadoTorneo.FINALIZADO);
+        torneoRepo.save(torneo);
+
+        // Poblar titulos deportivos (CAMPEON, SUBCAMPEON, TERCERO)
+        poblarTitulos(torneo, partidos);
+
+        log.info("[TORNEO] Torneo {} cerrado. Titulos deportivos registrados.", torneoId);
+        return toDTO(torneo);
+    }
+
+    private void poblarTitulos(Torneo torneo, List<Partido> partidos) {
+        var fasesKo = List.of(FaseTorneo.FINAL, FaseTorneo.TERCER_PUESTO);
+
+        for (Partido p : partidos) {
+            if (p.getEstado() != EstadoPartido.FINALIZADO
+                    && p.getEstado() != EstadoPartido.WO) continue;
+
+            if (p.getFase() == FaseTorneo.FINAL) {
+                var ganador = determinarGanador(p);
+                var perdedor = determinarPerdedor(p);
+                if (ganador != null) {
+                    guardarTitulo(torneo, ganador, Puesto.CAMPEON);
+                }
+                if (perdedor != null) {
+                    guardarTitulo(torneo, perdedor, Puesto.SUBCAMPEON);
+                }
+            } else if (p.getFase() == FaseTorneo.TERCER_PUESTO) {
+                var ganador = determinarGanador(p);
+                if (ganador != null) {
+                    guardarTitulo(torneo, ganador, Puesto.TERCERO);
+                }
+            }
+        }
+    }
+
+    private EquipoTorneo determinarGanador(Partido p) {
+        if (p.getEquipoLocalTorneo() == null || p.getEquipoVisitanteTorneo() == null) return null;
+        long gLocal = eventoPartidoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+                p.getId(), p.getEquipoLocalTorneo().getId(), TipoEvento.GOL);
+        long gVis = eventoPartidoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+                p.getId(), p.getEquipoVisitanteTorneo().getId(), TipoEvento.GOL);
+        if (gLocal > gVis) return p.getEquipoLocalTorneo();
+        if (gVis > gLocal) return p.getEquipoVisitanteTorneo();
+        return null;
+    }
+
+    private EquipoTorneo determinarPerdedor(Partido p) {
+        if (p.getEquipoLocalTorneo() == null || p.getEquipoVisitanteTorneo() == null) return null;
+        long gLocal = eventoPartidoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+                p.getId(), p.getEquipoLocalTorneo().getId(), TipoEvento.GOL);
+        long gVis = eventoPartidoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+                p.getId(), p.getEquipoVisitanteTorneo().getId(), TipoEvento.GOL);
+        if (gLocal < gVis) return p.getEquipoLocalTorneo();
+        if (gVis < gLocal) return p.getEquipoVisitanteTorneo();
+        return null;
+    }
+
+    private void guardarTitulo(Torneo torneo, EquipoTorneo et, Puesto puesto) {
+        if (et == null) return;
+        tituloRepo.save(Titulo.builder()
+                .torneo(torneo)
+                .equipoTorneo(et)
+                .puesto(puesto)
+                .fecha(LocalDate.now())
+                .build());
+    }
+
     // ── Validaciones de bloqueo y mapeos ──────────────────────────
 
     private String motivoBloqueoFormato(Torneo t) {
@@ -412,6 +507,7 @@ public class TorneoAdminService {
                 .expulsadoPor(et.getExpulsadoPor())
                 .fechaExpulsion(et.getFechaExpulsion())
                 .motivoExpulsion(et.getMotivoExpulsion())
+                .montoInscripcion(et.getTorneo().getMontoInscripcion())
                 .build();
     }
 

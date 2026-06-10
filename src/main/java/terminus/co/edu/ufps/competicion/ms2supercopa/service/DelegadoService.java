@@ -9,12 +9,16 @@ import terminus.co.edu.ufps.competicion.ms2supercopa.client.JugadorPadronDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.client.Ms1JugadoresClient;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.EquipoDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionDTO;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionInfoDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.delegado.AgregarMiembroRequest;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.delegado.CrearEquipoRequest;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.delegado.MiembroEquipoDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.delegado.TorneoDisponibleDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.*;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.*;
+import terminus.co.edu.ufps.competicion.ms3finanzas.model.EstadoComprobante;
+import terminus.co.edu.ufps.competicion.ms3finanzas.model.TipoComprobante;
+import terminus.co.edu.ufps.competicion.ms3finanzas.repository.ComprobanteRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -32,6 +36,33 @@ public class DelegadoService {
     private final JugadorRepository jugadorRepo;
     private final TorneoAdminService torneoAdminService;
     private final Ms1JugadoresClient ms1Client;
+    private final ComprobanteRepository comprobanteRepo;
+
+    @Transactional(readOnly = true)
+    public InscripcionInfoDTO obtenerInscripcionInfo(String delegadoCedula, UUID torneoId) {
+        var torneo = torneoRepo.findById(torneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Torneo no encontrado."));
+
+        var et = equipoTorneoRepo.findByTorneoIdAndDelegadoCedula(torneoId, delegadoCedula)
+                .orElse(null);
+
+        String estadoComprobante = null;
+        if (et != null) {
+            var comprobantes = comprobanteRepo.findByReferenciaId(et.getId());
+            if (!comprobantes.isEmpty()) {
+                estadoComprobante = comprobantes.get(0).getEstado().name();
+            }
+        }
+
+        return InscripcionInfoDTO.builder()
+                .equipoTorneoId(et != null ? et.getId() : null)
+                .montoInscripcion(torneo.getMontoInscripcion())
+                .cuentaDestino(torneo.getCuentaDestino())
+                .bancoDestino(torneo.getBancoDestino())
+                .titularCuenta(torneo.getTitularCuenta())
+                .estadoComprobante(estadoComprobante)
+                .build();
+    }
 
     @Transactional
     public EquipoDTO crearEquipo(String delegadoCedula, CrearEquipoRequest req) {
@@ -172,22 +203,8 @@ public class DelegadoService {
                 .toList();
     }
 
-    @Transactional
-    public InscripcionDTO pagar(String delegadoCedula, UUID equipoTorneoId) {
-        var et = equipoTorneoRepo.findById(equipoTorneoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Inscripcion no encontrada."));
-        if (!et.getDelegadoCedula().equals(delegadoCedula)) {
-            throw new RuntimeException("No eres el delegado de esta inscripcion.");
-        }
-        if (et.getEstadoInscripcion() != EstadoInscripcion.PENDIENTE_PAGO) {
-            throw new RuntimeException("La inscripcion no esta pendiente de pago (estado actual: "
-                    + et.getEstadoInscripcion() + ").");
-        }
-        et.setEstadoInscripcion(EstadoInscripcion.APROBADO);
-        et.setAprobadoPor("MOCK_PAGO");
-        equipoTorneoRepo.save(et);
-        return torneoAdminService.toInscripcionDTO(et);
-    }
+    // Eliminado: el pago mock fue reemplazado por el flujo real de comprobantes (MS3).
+    // El delegado sube un comprobante y el admin lo aprueba. Ya no hay auto-aprobacion.
 
     // ─────────────────────────────────────────────────────────
     //  HU44 — Delegado gestiona plantel directamente

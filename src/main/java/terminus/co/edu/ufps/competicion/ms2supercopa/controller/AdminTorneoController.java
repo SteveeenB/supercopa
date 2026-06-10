@@ -3,17 +3,9 @@ package terminus.co.edu.ufps.competicion.ms2supercopa.controller;
 import lombok.RequiredArgsConstructor;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.RechazoRequestDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.TorneoDTO;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.CrearTorneoRequest;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.GuardarConfigRequest;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionDTO;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.PartidoAdminDTO;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.PosicionGrupoDTO;
-import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.TorneoConfigDTO;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.*;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.Partido;
-import terminus.co.edu.ufps.competicion.ms2supercopa.service.ClasificacionService;
-import terminus.co.edu.ufps.competicion.ms2supercopa.service.FixtureService;
-import terminus.co.edu.ufps.competicion.ms2supercopa.service.PartidoAdminService;
-import terminus.co.edu.ufps.competicion.ms2supercopa.service.TorneoAdminService;
+import terminus.co.edu.ufps.competicion.ms2supercopa.service.*;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,6 +26,8 @@ public class AdminTorneoController {
     private final FixtureService fixtureService;
     private final PartidoAdminService partidoAdminService;
     private final ClasificacionService clasificacionService;
+    private final FinanzasConfigService finanzasConfigService;
+    private final PremioService premioService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -73,6 +67,90 @@ public class AdminTorneoController {
             @PathVariable UUID torneoId,
             @RequestBody GuardarConfigRequest req) {
         return ResponseEntity.ok(torneoAdminService.guardarConfiguracion(torneoId, req));
+    }
+
+    // ── Finanzas Config (Inscripcion + Multas) ───────────────────
+
+    @GetMapping("/{torneoId}/finanzas-config")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<FinanzasConfigDTO> obtenerFinanzasConfig(@PathVariable UUID torneoId) {
+        return ResponseEntity.ok(finanzasConfigService.obtenerConfig(torneoId));
+    }
+
+    @PutMapping("/{torneoId}/inscripcion-config")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<InscripcionConfigDTO> guardarInscripcionConfig(
+            @PathVariable UUID torneoId,
+            @RequestBody InscripcionConfigDTO req) {
+        return ResponseEntity.ok(finanzasConfigService.guardarInscripcionConfig(torneoId, req));
+    }
+
+    @PutMapping("/{torneoId}/multa-config")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<MultaConfigDTO> guardarMultaConfig(
+            @PathVariable UUID torneoId,
+            @RequestBody MultaConfigDTO req) {
+        return ResponseEntity.ok(finanzasConfigService.guardarMultaConfig(torneoId, req));
+    }
+
+    // ── Premios ──────────────────────────────────────────────────
+
+    @GetMapping("/{torneoId}/premios")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<List<PremioDTO>> listarPremios(@PathVariable UUID torneoId) {
+        return ResponseEntity.ok(premioService.listarPremios(torneoId));
+    }
+
+    @PostMapping("/{torneoId}/premios")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<PremioDTO> crearPremio(
+            @PathVariable UUID torneoId,
+            @RequestBody CrearPremioRequest req) {
+        return ResponseEntity.ok(premioService.crearPremio(torneoId, req));
+    }
+
+    @PutMapping("/{torneoId}/premios/{torneoPremioId}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<PremioDTO> actualizarPremio(
+            @PathVariable UUID torneoId,
+            @PathVariable UUID torneoPremioId,
+            @RequestBody ActualizarPremioRequest req) {
+        return ResponseEntity.ok(premioService.actualizarPremio(torneoId, torneoPremioId, req));
+    }
+
+    @DeleteMapping("/{torneoId}/premios/{torneoPremioId}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<Void> eliminarPremio(
+            @PathVariable UUID torneoId,
+            @PathVariable UUID torneoPremioId) {
+        premioService.eliminarPremio(torneoId, torneoPremioId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{torneoId}/premios/{torneoPremioId}/asignar")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR') or hasAuthority('SCOPE_internal')")
+    public ResponseEntity<?> asignarPremio(
+            @PathVariable UUID torneoId,
+            @PathVariable UUID torneoPremioId,
+            @RequestBody AsignarPremioRequest req) {
+        return ResponseEntity.ok(premioService.asignarPremio(torneoId, torneoPremioId, req));
+    }
+
+    @DeleteMapping("/{torneoId}/premios/{torneoPremioId}/asignar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<Void> quitarAsignacion(
+            @PathVariable UUID torneoId,
+            @PathVariable UUID torneoPremioId) {
+        premioService.quitarAsignacion(torneoId, torneoPremioId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Cierre de torneo ────────────────────────────────────────
+
+    @PostMapping("/{torneoId}/cerrar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<TorneoDTO> cerrarTorneo(@PathVariable UUID torneoId) {
+        return ResponseEntity.ok(torneoAdminService.cerrarTorneo(torneoId));
     }
 
     // ── Inscripciones ─────────────────────────────────────────────

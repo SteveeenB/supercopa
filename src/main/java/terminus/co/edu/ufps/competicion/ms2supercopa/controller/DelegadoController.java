@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.EquipoDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionDTO;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionInfoDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.delegado.ActualizarCamisetaRequest;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.delegado.AgregarMiembroRequest;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.delegado.CrearEquipoRequest;
@@ -45,6 +46,14 @@ public class DelegadoController {
         return ResponseEntity.ok(delegadoService.torneosDisponibles(jwt.getClaimAsString("cedula")));
     }
 
+    @GetMapping("/torneos/{torneoId}/inscripcion-info")
+    public ResponseEntity<InscripcionInfoDTO> inscripcionInfo(
+            @PathVariable UUID torneoId,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(delegadoService.obtenerInscripcionInfo(
+                jwt.getClaimAsString("cedula"), torneoId));
+    }
+
     @PostMapping("/torneos/{torneoId}/inscribir")
     public ResponseEntity<InscripcionDTO> inscribir(
             @PathVariable UUID torneoId,
@@ -55,13 +64,6 @@ public class DelegadoController {
     @GetMapping("/inscripciones/mias")
     public ResponseEntity<List<InscripcionDTO>> misInscripciones(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(delegadoService.misInscripciones(jwt.getClaimAsString("cedula")));
-    }
-
-    @PostMapping("/inscripciones/{equipoTorneoId}/pagar")
-    public ResponseEntity<InscripcionDTO> pagar(
-            @PathVariable UUID equipoTorneoId,
-            @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(delegadoService.pagar(jwt.getClaimAsString("cedula"), equipoTorneoId));
     }
 
     @GetMapping("/equipo-torneo/{equipoTorneoId}/miembros")

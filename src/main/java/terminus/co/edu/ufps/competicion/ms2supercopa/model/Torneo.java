@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -63,4 +64,16 @@ public class Torneo {
 
     @Column(name = "configurado_en")
     private LocalDateTime configuradoEn;
+
+    @Column(name = "monto_inscripcion", precision = 12, scale = 2)
+    private BigDecimal montoInscripcion;
+
+    @Column(name = "cuenta_destino", length = 120)
+    private String cuentaDestino;
+
+    @Column(name = "banco_destino", length = 80)
+    private String bancoDestino;
+
+    @Column(name = "titular_cuenta", length = 150)
+    private String titularCuenta;
 }

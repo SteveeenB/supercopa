@@ -23,4 +23,5 @@ public class PartidoAdminDTO {
     private String fase;
     private Integer jornada;
     private String grupo;
+    private UUID torneoId;
 }

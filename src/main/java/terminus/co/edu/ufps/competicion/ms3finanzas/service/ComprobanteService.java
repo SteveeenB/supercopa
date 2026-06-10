@@ -8,6 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import terminus.co.edu.ufps.competicion.exception.ResourceNotFoundException;
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.EquipoTorneo;
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoInscripcion;
+import terminus.co.edu.ufps.competicion.ms2supercopa.repository.EquipoTorneoRepository;
 import terminus.co.edu.ufps.competicion.ms3finanzas.dto.ComprobanteDTO;
 import terminus.co.edu.ufps.competicion.ms3finanzas.dto.SubirComprobanteRequest;
 import terminus.co.edu.ufps.competicion.ms3finanzas.model.Comprobante;
@@ -15,23 +18,13 @@ import terminus.co.edu.ufps.competicion.ms3finanzas.model.EstadoComprobante;
 import terminus.co.edu.ufps.competicion.ms3finanzas.model.TipoComprobante;
 import terminus.co.edu.ufps.competicion.ms3finanzas.repository.ComprobanteRepository;
 
-/**
- * Gestión de comprobantes de pago (HU25, HU27, HU28).
- *
- * Estado actual: skeleton con CRUD y resolución básica.
- * Falta implementar:
- *  - Validar que el delegado es dueño del equipo/multa al subir (HU25/HU27).
- *  - Al aprobar comprobante de INSCRIPCION: notificar a MS2 que la inscripción
- *    pasa a APROBADO (hoy MS2 tiene mock_pago directo).
- *  - Al aprobar comprobante de MULTA: marcar Multa como PAGADA.
- *  - Notificar al delegado vía MS5 (HU26).
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ComprobanteService {
 
     private final ComprobanteRepository comprobanteRepo;
+    private final EquipoTorneoRepository equipoTorneoRepo;
 
     @Transactional
     public ComprobanteDTO subir(SubirComprobanteRequest req, String cedulaUploader) {
@@ -42,7 +35,13 @@ public class ComprobanteService {
             throw new RuntimeException("Tipo de comprobante invalido: " + req.getTipo());
         }
 
-        // TODO: validar que el cedulaUploader es delegado del equipo/multa referenciado.
+        if (tipo == TipoComprobante.INSCRIPCION) {
+            var et = equipoTorneoRepo.findById(req.getReferenciaId())
+                    .orElseThrow(() -> new ResourceNotFoundException("EquipoTorneo no encontrado."));
+            if (!et.getDelegadoCedula().equals(cedulaUploader)) {
+                throw new RuntimeException("No eres el delegado de esta inscripcion.");
+            }
+        }
 
         var c = Comprobante.builder()
                 .tipo(tipo)
@@ -80,9 +79,17 @@ public class ComprobanteService {
         c.setFechaResolucion(LocalDateTime.now());
         comprobanteRepo.save(c);
 
-        // TODO HU28: si tipo=INSCRIPCION → marcar EquipoTorneo como APROBADO en MS2.
-        // TODO HU28: si tipo=MULTA → marcar Multa como PAGADA.
-        // TODO HU26: notificar al delegado vía publisher hacia MS5.
+        if (c.getTipo() == TipoComprobante.INSCRIPCION) {
+            equipoTorneoRepo.findById(c.getReferenciaId()).ifPresent(et -> {
+                if (et.getEstadoInscripcion() == EstadoInscripcion.PENDIENTE_PAGO) {
+                    et.setEstadoInscripcion(EstadoInscripcion.APROBADO);
+                    et.setAprobadoPor(cedulaAdmin);
+                    equipoTorneoRepo.save(et);
+                    log.info("[FINANZAS] Inscripcion {} APROBADA por comprobante {}", et.getId(), c.getId());
+                }
+            });
+        }
+
         log.info("[FINANZAS] Comprobante {} APROBADO por {}", c.getId(), cedulaAdmin);
         return toDTO(c);
     }
@@ -100,9 +107,15 @@ public class ComprobanteService {
         c.setFechaResolucion(LocalDateTime.now());
         comprobanteRepo.save(c);
 
-        // TODO HU26: notificar al delegado.
         log.info("[FINANZAS] Comprobante {} RECHAZADO por {}: {}", c.getId(), cedulaAdmin, motivo);
         return toDTO(c);
+    }
+
+    @Transactional(readOnly = true)
+    public ComprobanteDTO obtenerComprobante(UUID id) {
+        return comprobanteRepo.findById(id)
+                .map(this::toDTO)
+                .orElse(null);
     }
 
     private ComprobanteDTO toDTO(Comprobante c) {

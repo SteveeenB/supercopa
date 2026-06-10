@@ -136,6 +136,10 @@ public class ClasificacionService {
             if (!local && !vis) continue;
             if (p.getEstado() == EstadoPartido.DESCANSO) continue;
             if (p.getEstado() != EstadoPartido.FINALIZADO && p.getEstado() != EstadoPartido.WO) continue;
+            if ("SIN_PAGO_ARBITRAJE".equals(p.getTipoCierre())) {
+                s.pj++;
+                continue;
+            }
 
             UUID localId = p.getEquipoLocalTorneo() != null ? p.getEquipoLocalTorneo().getId() : null;
             UUID visId = p.getEquipoVisitanteTorneo() != null ? p.getEquipoVisitanteTorneo().getId() : null;

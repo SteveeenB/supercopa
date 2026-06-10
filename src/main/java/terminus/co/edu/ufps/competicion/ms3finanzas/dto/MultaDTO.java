@@ -22,6 +22,13 @@ public class MultaDTO {
     private BigDecimal monto;
     private String estado;
     private Integer partidosSuspension;
+    private Integer partidosSuspensionRestantes;
+    private String pagadoPorCedula;
+    private UUID partidoPagoId;
+    private Boolean habilitadoManual;
+    private String habilitadoPorCedula;
+    private LocalDateTime habilitadoEn;
+    private String motivoHabilitacion;
     private LocalDateTime fechaGeneracion;
     private LocalDateTime fechaPago;
 }

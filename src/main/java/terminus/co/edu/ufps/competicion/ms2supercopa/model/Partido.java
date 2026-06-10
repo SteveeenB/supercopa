@@ -60,4 +60,7 @@ public class Partido {
     @Enumerated(EnumType.STRING)
     @Column(name = "siguiente_slot", length = 10)
     private SlotPartido siguienteSlot;
+
+    @Column(name = "tipo_cierre", length = 30)
+    private String tipoCierre;
 }
