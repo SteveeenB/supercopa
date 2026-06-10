@@ -24,7 +24,9 @@ public class EventoPartido {
     @JoinColumn(name = "partido_id", nullable = false)
     private Partido partido;
 
-    @Column(name = "cedula", nullable = false, length = 20)
+    // Nullable: los goles dummy generados al declarar W.O. no tienen jugador
+    // específico que los anote (resultado 3-0 administrativo).
+    @Column(name = "cedula", length = 20)
     private String cedula;
 
     @ManyToOne(fetch = FetchType.LAZY)

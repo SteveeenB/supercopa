@@ -24,11 +24,11 @@ public class Partido {
     private Torneo torneo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "equipo_local_torneo_id", nullable = false)
+    @JoinColumn(name = "equipo_local_torneo_id")
     private EquipoTorneo equipoLocalTorneo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "equipo_visitante_torneo_id", nullable = false)
+    @JoinColumn(name = "equipo_visitante_torneo_id")
     private EquipoTorneo equipoVisitanteTorneo;
 
     @Column(nullable = false)
@@ -42,4 +42,22 @@ public class Partido {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fase", length = 20)
+    private FaseTorneo fase;
+
+    @Column(name = "jornada")
+    private Integer jornada;
+
+    @Column(name = "grupo", length = 1)
+    private String grupo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "siguiente_partido_id")
+    private Partido siguientePartido;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "siguiente_slot", length = 10)
+    private SlotPartido siguienteSlot;
 }

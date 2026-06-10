@@ -10,6 +10,12 @@ CREATE TABLE supercopa.torneos (
   fecha_fin date,
   publicado_en timestamp without time zone,
   created_at timestamp without time zone NOT NULL DEFAULT now(),
+  formato character varying CHECK (formato IS NULL OR (formato::text = ANY (ARRAY['LIGA'::character varying::text, 'ELIMINACION_DIRECTA'::character varying::text, 'GRUPOS_ELIMINATORIAS'::character varying::text, 'CHAMPIONS'::character varying::text]))),
+  num_grupos integer,
+  clasifican_por_grupo integer,
+  repechaje boolean NOT NULL DEFAULT false,
+  rondas_playoff character varying,
+  configurado_en timestamp without time zone,
   CONSTRAINT torneos_pkey PRIMARY KEY (id)
 );
 CREATE TABLE supercopa.equipos (
@@ -91,15 +97,21 @@ CREATE TABLE supercopa.solicitudes_equipo (
 CREATE TABLE supercopa.partidos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   torneo_id uuid NOT NULL,
-  equipo_local_torneo_id uuid NOT NULL,
-  equipo_visitante_torneo_id uuid NOT NULL,
+  equipo_local_torneo_id uuid,
+  equipo_visitante_torneo_id uuid,
   fecha timestamp without time zone NOT NULL,
   estado character varying NOT NULL CHECK (estado::text = ANY (ARRAY['PROGRAMADO'::character varying::text, 'EN_CURSO'::character varying::text, 'FINALIZADO'::character varying::text, 'APLAZADO'::character varying::text, 'WO'::character varying::text, 'DESCANSO'::character varying::text])),
   created_at timestamp without time zone NOT NULL DEFAULT now(),
+  fase character varying CHECK (fase IS NULL OR (fase::text = ANY (ARRAY['GRUPOS'::character varying::text, 'REPECHAJE'::character varying::text, 'OCTAVOS'::character varying::text, 'CUARTOS'::character varying::text, 'SEMIS'::character varying::text, 'FINAL'::character varying::text, 'TERCER_PUESTO'::character varying::text]))),
+  jornada integer,
+  grupo character varying,
+  siguiente_partido_id uuid,
+  siguiente_slot character varying CHECK (siguiente_slot IS NULL OR (siguiente_slot::text = ANY (ARRAY['LOCAL'::character varying::text, 'VISITANTE'::character varying::text]))),
   CONSTRAINT partidos_pkey PRIMARY KEY (id),
   CONSTRAINT partidos_equipo_local_torneo_id_fkey FOREIGN KEY (equipo_local_torneo_id) REFERENCES supercopa.equipo_torneo(id),
   CONSTRAINT partidos_equipo_visitante_torneo_id_fkey FOREIGN KEY (equipo_visitante_torneo_id) REFERENCES supercopa.equipo_torneo(id),
-  CONSTRAINT partidos_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES supercopa.torneos(id)
+  CONSTRAINT partidos_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES supercopa.torneos(id),
+  CONSTRAINT fk_partidos_siguiente FOREIGN KEY (siguiente_partido_id) REFERENCES supercopa.partidos(id)
 );
 CREATE TABLE supercopa.partido_jugador (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -116,7 +128,7 @@ CREATE TABLE supercopa.partido_jugador (
 CREATE TABLE supercopa.eventos_partido (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   partido_id uuid NOT NULL,
-  cedula character varying NOT NULL,
+  cedula character varying,
   equipo_torneo_id uuid NOT NULL,
   tipo_evento character varying NOT NULL CHECK (tipo_evento::text = ANY (ARRAY['GOL'::character varying::text, 'AMARILLA'::character varying::text, 'AZUL'::character varying::text, 'ROJA'::character varying::text])),
   orden integer NOT NULL CHECK (orden > 0),

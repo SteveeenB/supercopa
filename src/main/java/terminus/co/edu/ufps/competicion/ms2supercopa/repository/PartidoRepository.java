@@ -14,6 +14,8 @@ import java.util.UUID;
 public interface PartidoRepository extends JpaRepository<Partido, UUID> {
     List<Partido> findByTorneoIdOrderByFechaAsc(UUID torneoId);
     boolean existsByTorneoId(UUID torneoId);
+    boolean existsByTorneoIdAndEstado(UUID torneoId, EstadoPartido estado);
+    List<Partido> findByTorneoId(UUID torneoId);
 
     @Query("SELECT p FROM Partido p WHERE p.torneo.id = :torneoId " +
            "AND (p.equipoLocalTorneo.id = :equipoTorneoId OR p.equipoVisitanteTorneo.id = :equipoTorneoId) " +

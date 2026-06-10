@@ -51,6 +51,7 @@ terminus.co.edu.ufps.competicion.ms2supercopa/
 | HU43 | Delegado gestiona solicitudes entrantes de jugadores | Delegado |
 | HU44 | Delegado gestiona plantel (agregar/remover, número de camiseta) | Delegado |
 | HU46 | Admin registra partido completo en ausencia del árbitro | Admin |
+| HU16 | Registrar retiro o descalificación de equipo | Pendiente (spec en [`hu16.md`](hu16.md)) |
 
 ### Pendientes / parciales
 
@@ -61,7 +62,7 @@ terminus.co.edu.ufps.competicion.ms2supercopa/
 | HU11 | Personalizar formato del torneo (grupos, clasificados, bracket) | Pendiente |
 | HU13 | Asignar y editar horarios del fixture | Pendiente |
 | HU14 | Publicar cronograma de partidos | Pendiente |
-| HU16 | Registrar retiro o descalificación de equipo | Pendiente (spec en [`hu16.md`](hu16.md)) |
+
 | HU17 | Registrar aplazamiento y reasignar horario | Pendiente |
 | HU18 | Generar PDF de partidos por fecha | Pendiente |
 | HU19 | Verificar elegibilidad de jugadores antes del partido | Pendiente — requiere consumir `MultaService` de MS3 (in-process) |

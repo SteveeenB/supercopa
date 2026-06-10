@@ -1,8 +1,10 @@
 # Arquitectura: Monolito Modular MS2 + MS3 (Super-Copa + Finanzas)
 
-> **Propósito de este documento:** Explicar a fondo por qué MS2 y MS3 conviven en un **único binario Spring Boot** dentro del repo `supercopa`, qué patrón arquitectónico estamos aplicando, cómo se valida desde los endpoints reales del proyecto, y bajo qué condiciones tendría sentido separarlos en dos microservicios independientes en el futuro.
+> **Propósito de este documento:** Explicar a fondo por qué MS2 y MS3 conviven en un **único binario Spring Boot** dentro del repo `supercopa`, qué patrón arquitectónico estamos aplicando, cómo se valida desde los endpoints reales del proyecto, **cómo este binario se comunica con los demás microservicios (MS1, MS4, MS5)**, y bajo qué condiciones tendría sentido separarlos en dos microservicios independientes en el futuro.
 >
 > **Audiencia:** desarrolladores del repo, revisores del proyecto y cualquiera que se pregunte: *"si el proyecto se llama microservicios, ¿por qué hay dos microservicios en el mismo binario?"*.
+>
+> **Documento vivo.** Última actualización con la incorporación de MS4 (Analytics) — extiende §3, §5 y §8 con los patrones de comunicación que MS4 obliga a formalizar.
 
 ---
 
@@ -111,6 +113,25 @@ supercopa/src/main/java/terminus/co/edu/ufps/competicion/
 3. **DTOs no se cruzan**: `MultaDTO` (MS3) nunca se inyecta dentro de `PartidoDTO` (MS2) y viceversa. Si MS2 necesita un dato de MS3, lo recibe vía DTO local construido por el service de MS3.
 
 4. **El paquete `exception/` es compartido** porque `GlobalExceptionHandler` es `@ControllerAdvice` y debe ver excepciones de ambos módulos. Esta es una excepción consciente al patrón.
+
+### Convención `/internal/` para endpoints service-to-service
+
+Cuando un microservicio necesita exponer datos para que **otro microservicio** los consuma (no para usuarios finales del frontend), se usa el sub-prefijo `internal` dentro del prefix de dominio:
+
+```
+/api/supercopa/internal/torneos/{id}/clasificacion     ← lo consume MS4 al reconstruir snapshots
+/api/supercopa/internal/torneos/{id}/cierre-final      ← reservado para MS4 Sprint 2 (Salón de Fama)
+/api/finanzas/internal/multas/torneo/{id}              ← reservado para MS4 cuando exponga stats financieras
+```
+
+**Reglas que mantienen el patrón:**
+
+1. **Auth distinta:** estos endpoints validan `X-Internal-Secret` (shared secret en env var), NO un JWT de usuario. Detallado en §5.6.
+2. **Ocultos del Swagger público.** Anotar con `@Hidden` o filtrarlos en `springdoc.packages-to-scan`.
+3. **Solo lectura.** Nunca un endpoint bajo `/internal/` muta data fuente; si MS4 necesitara escribir en MS3, se rediseña vía webhook + lógica reactiva en MS3.
+4. **El frontend NUNCA debe llamarlos.** CORS limitado a orígenes server-to-server (o sin CORS si el caller es Spring).
+
+La convención es **guía visual para developers**; Spring no la trata distinto. El aislamiento efectivo viene del filtro de auth que se aplica solo a paths que matcheen `/api/*/internal/**`.
 
 ---
 
@@ -241,6 +262,132 @@ public class PartidoAdminService {
 
 Hoy `NotificacionPublisher` está implementado como `LoggingNotificacionPublisher` (solo emite logs). Cuando MS5 esté en producción (DO Componente D), se sustituye por `HttpNotificacionPublisher` sin cambiar PartidoAdminService.
 
+### 5.4 MS2 → MS4 (webhook async para reconstruir analytics)
+
+Cuando MS2 cierra un partido, MS4 (Analytics) necesita reconstruir sus snapshots de clasificación, goleadores y portería. El patrón es **idéntico al de MS5**: HTTP `@Async` fire-and-forget al final del cierre.
+
+```java
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class AnalyticsPublisher {
+    private final RestClient analyticsClient;
+    @Value("${analytics.webhook.secret}") private String secret;
+
+    @Async
+    public void notificarPartidoCerrado(UUID torneoId, UUID partidoId) {
+        try {
+            analyticsClient.post()
+                .uri("/api/analytics/webhooks/partido-cerrado")
+                .header("X-Webhook-Secret", secret)
+                .body(Map.of("torneoId", torneoId, "partidoId", partidoId))
+                .retrieve()
+                .toBodilessEntity();
+        } catch (Exception e) {
+            log.warn("MS4 webhook fail (no bloqueante): {}", e.getMessage());
+        }
+    }
+}
+```
+
+Y en `PartidoAdminService.cerrarPartido`, después del commit transaccional:
+
+```java
+analyticsPublisher.notificarPartidoCerrado(torneoId, partidoId);
+```
+
+**Por qué el mismo patrón que MS5:**
+
+- MS4 no es crítico para el cierre del partido. Si MS4 está caído, el partido se cierra igual; MS4 se resincroniza al volver, vía `POST /api/analytics/torneos/{id}/recompute`.
+- Cero impacto en la latencia visible al usuario que cierra el partido.
+- MS2 no necesita conocer el detalle interno de MS4 (qué snapshots tiene, qué tablas).
+
+**Diferencia con MS5:** el webhook a MS4 tiene un endpoint contraparte real (`POST /api/analytics/webhooks/partido-cerrado`) que MS4 implementa hoy mismo, mientras que el publisher de MS5 solo loguea. Cuando MS5 entre en producción usará exactamente el mismo patrón.
+
+El nombre formal del patrón: **outbound notification with shared-secret webhook**. Es el patrón estándar de event-driven entre microservicios pequeños sin broker dedicado.
+
+### 5.5 MS4 → MS2 (HTTP pull para reconstruir snapshots)
+
+A diferencia de MS5 (consumidor puro de notificaciones), **MS4 necesita pedirle datos a MS2** después de recibir el webhook. Hace falta porque MS4 mantiene su propia BD desnormalizada (vista materializada) que requiere agregaciones que solo MS2 sabe calcular (ej. clasificación con criterios de desempate).
+
+Por eso MS2 expone endpoints bajo `/api/supercopa/internal/` (§3.5), y MS4 los consume vía un cliente HTTP:
+
+```java
+@Component
+@RequiredArgsConstructor
+public class Ms2InternalClient {
+    private final RestClient ms2Client; // con X-Internal-Secret en defaultHeader
+
+    public Map<String, List<PosicionDTO>> obtenerClasificacion(UUID torneoId) {
+        return ms2Client.get()
+            .uri("/api/supercopa/internal/torneos/{id}/clasificacion", torneoId)
+            .retrieve()
+            .body(new ParameterizedTypeReference<>() {});
+    }
+}
+```
+
+**Costo asumido:** este HTTP es el equivalente conceptual al MS3 → MS1 (§5.2). Latencia de ~50ms por llamada. Para un cierre de partido (~1 cada 90min en pico) es trivial. Cuando MS4 escale a HU48 (perfil cross-torneo) el costo se compensa con caching en MS4 mismo.
+
+**Por qué pull y no push-completo del payload:**
+
+Podríamos meter TODO en el payload del webhook (resultado del partido + eventos + clasificación completa) y MS4 no necesitaría llamar de vuelta. Lo descartamos porque:
+
+- **Acopla MS2 al schema interno de MS4.** Cualquier campo nuevo en `analytics.snapshot_*` obliga a cambiar el payload de MS2.
+- **El webhook se vuelve pesado** (decenas de KB) en lugar de pocos bytes (`{torneoId, partidoId}`).
+- **MS4 no podría regenerar snapshots sin un webhook nuevo.** Si MS4 tiene downtime y pierde N webhooks, el endpoint `POST /recompute` actual lo recupera leyendo todo desde MS2. Con push-completo necesitaríamos un buffer o reenvío manual.
+
+El patrón implementado es **lean event + pull on demand**, estándar en arquitecturas event-driven sin broker (RabbitMQ/Kafka/SQS).
+
+#### Caso especial: proyección de premios
+
+El mismo patrón aplica para los premios del torneo (HU34):
+
+- **MS2 es dueño** de la tabla `supercopa.premios_torneo`. El admin los configura desde la UI admin que pega a MS2 con su JWT.
+- **MS4 los expone públicamente** vía `GET /api/analytics/torneos/{id}/premios`. Internamente hace pull on-demand a `/api/supercopa/internal/torneos/{id}/premios` con `X-Internal-Secret`.
+- MS4 puede cachear en memoria (60s) para reducir round-trips, pero NO necesita schema propio (`analytics.*` no tiene tabla de premios). Es proyección pura.
+
+Esto rectifica la idea original de `contexto_ms4.md` que decía "premios se escriben en MS4". La decisión final es: **MS2 dueño + MS4 proyección de lectura**, porque el admin configura premios en el mismo wizard del torneo (mejor UX, sin HTTP innecesario MS2→MS4 al editar).
+
+#### Callback inverso: MS4 → MS2 al cerrar torneo
+
+Al recibir el webhook `torneo-cerrado`, MS4 calcula automáticamente los ganadores de premios automáticos (Goleador via top de eventos GOL, Portero via `Jugador.posicion='PORTERO'` + menor `gc/pj`, Campeón/Subcampeón/3° desde el bracket). Una vez calculados, **MS4 hace HTTP de vuelta a MS2** para persistir:
+
+```
+POST /api/supercopa/internal/torneos/{id}/premios/{premioId}/asignar
+Headers: X-Internal-Secret
+Body: { ganadorCedula?, ganadorEquipoTorneoId? }
+```
+
+MS2 es siempre la fuente de verdad de quién ganó qué. MS4 solo ayuda con el cálculo agregado.
+
+### 5.6 Patrón de auth entre servicios
+
+Resumen de las opciones aplicadas en CodeCup hoy:
+
+| Caller → Callee | Auth pattern | Justificación |
+|---|---|---|
+| MS2 ↔ MS3 (in-process) | Ninguna | Mismo proceso, misma JVM, mismo `@Transactional` |
+| MS3 → MS1 (HTTP) | JWT del usuario propagado | MS3 actúa "en nombre del usuario" autenticado |
+| Cualquier MS → MS1 (consulta padrón) | JWT del usuario propagado | MS1 ya es OAuth2 issuer; reusa el mismo token |
+| MS2 → MS4 (webhook) | Shared secret en header `X-Webhook-Secret` | MS2 actúa como **sistema** (no como usuario); no hay JWT que propagar |
+| MS4 → MS2 (`/internal/`) | Shared secret en header `X-Internal-Secret` | Mismo razonamiento: MS4 lee data agregada como sistema |
+| MS2 → MS5 (notificación) | Shared secret (cuando MS5 exista) | Mismo patrón outbound notification |
+| Frontend → cualquier MS | JWT del usuario (Bearer) | Usuario autenticado vía MS1 |
+
+**Por qué shared secret y no service-to-service OAuth2 (`client_credentials`):**
+
+- **Simplicidad operativa:** 1 env var por par de servicios vs. configurar MS1 como issuer con clientes registrados.
+- **Para CodeCup** (3-4 binarios talking to each other, 1 environment productivo) la complejidad de OAuth2 client_credentials no se compensa con beneficios reales.
+- **Camino de upgrade incremental:** cuando crezca el número de servicios o se agregue compliance externo (PCI, HIPAA, etc.), se migra a `client_credentials` cambiando solo el filtro de auth de cada `/internal/`. La forma del payload no cambia.
+
+**Rotación del secret:** las env vars `ANALYTICS_WEBHOOK_SECRET`, `INTERNAL_API_SECRET` (y eventualmente `MS5_WEBHOOK_SECRET`) se rotan vía secrets manager de DO o Supabase. Cero código.
+
+**Lo que NO usamos:**
+
+- **mTLS** — requiere PKI propio y rotación de certificados; sobreingeniería para este proyecto.
+- **API Gateway intermedio** que valide todo — DO App Platform ya rutea por path; meter un Kong/Tyk intermedio sumaría latencia y costo sin justificación.
+
 ---
 
 ## 6. Beneficios concretos del monolito modular para este proyecto
@@ -312,8 +459,8 @@ El proyecto CODE-CUP tiene 5 microservicios planeados. Esta es la realidad de su
 | MS1 (Identidad) | Componente A | `AuthCodeCup` | Propio | Dueño de Appwrite + padrón. Auth crítico, debe ser independientemente reiniciable. |
 | MS2 (Super-Copa) | Componente B | `supercopa` | Compartido con MS3 | Núcleo de torneo |
 | MS3 (Finanzas) | Componente B | `supercopa` | Compartido con MS2 | Acoplado en eventos a MS2 |
-| MS4 (Analytics) | Componente C | `analytics` | Propio | Lecturas pesadas, cero escritura — aislar carga |
-| MS5 (Notificaciones) | Componente D (DO) | `notificaciones` | Propio | Reactivo, side-effect only |
+| MS4 (Analytics) | Componente C | `analytics` (repo `AnalyticsCodeCup`) | Propio | Lecturas pesadas sobre data fuente de MS2/MS3 vía HTTP. **Escrituras solo sobre snapshots desnormalizados propios** en su schema `analytics.*` (BD Supabase #3). Recibe webhooks de MS2 y consulta MS2 vía `/internal/` |
+| MS5 (Notificaciones) | Componente D (DO) | `notificaciones` | Propio | Reactivo, side-effect only. Mismo patrón de webhook que MS4 (§5.4) |
 
 Los **componentes A, B, C, D corren en la misma DO App Platform** bajo routing nativo (`/api/auth/**` → A, `/api/supercopa/**` y `/api/finanzas/**` → B, `/api/analytics/**` → C, MS5 trabaja por eventos/HTTP outbound).
 
@@ -349,7 +496,43 @@ Lo importante: **NADA de esto requiere reescribir lógica**. La estructura modul
 
 ---
 
-## 10. Conclusión
+## 10. Evolución futura del transport: de HTTP webhooks a colas de mensajería
+
+El patrón actual de comunicación entre binarios (MS2 ↔ MS4, MS2 → MS5) usa **HTTP `@Async` fire-and-forget con shared secret**. Es la opción correcta HOY por simplicidad: no hay broker que operar, no hay otra librería en el classpath, y el volumen es bajo.
+
+Pero deja **dos compromisos** asumidos:
+
+1. **Sin garantías de entrega.** Si MS4 está caído cuando MS2 dispara el webhook, ese evento se pierde. La mitigación actual es el endpoint `POST /api/analytics/torneos/{id}/recompute` que MS4 expone para resincronizar.
+2. **Sin orden estricto cross-eventos.** Dos cierres de partido casi simultáneos pueden llegar a MS4 en orden inverso al de MS2. La idempotencia del `SnapshotBuilderService` lo absorbe, pero en patrones más complejos (ej. "cerrar torneo después de cerrar todos los partidos") esto se vuelve un problema.
+
+### Señales que disparan la migración a un broker
+
+| Señal | Solución típica |
+|---|---|
+| Volumen de webhooks >10/s sostenido | Buffer interno en MS2 deja de alcanzar; broker necesario |
+| Necesidad de **at-least-once delivery** garantizada | RabbitMQ con persistent queues, o SQS |
+| Múltiples consumidores del mismo evento (MS4 + MS5 + audit log) | Pub/Sub real (Redis Streams, RabbitMQ topics, Kafka) |
+| Orden estricto necesario | Kafka con partición por `torneoId` |
+| Compliance que exija audit log de cada evento entre servicios | Cualquier broker persistente |
+
+### Procedimiento de migración (cuando toque)
+
+1. **Introducir un `EventPublisher` interface** en MS2 que abstraiga el transport. Hoy lo implementa `HttpWebhookEventPublisher`; mañana lo implementa `RabbitEventPublisher`.
+2. **MS4 inverte la dirección de consumo**: deja de tener `@PostMapping /webhooks/partido-cerrado` y pasa a tener un `@RabbitListener` que escucha la cola.
+3. **El `/api/analytics/torneos/{id}/recompute`** se conserva como fallback manual. Sigue siendo útil para casos de operación.
+4. **El shared secret se reemplaza** por las credenciales del broker (RabbitMQ user/password, IAM para SQS, etc.).
+
+**Costo estimado:** 2-3 días por broker pequeño una vez justifique el cambio. Cero reescritura de la lógica de negocio en MS2, MS3 o MS4 — solo cambia el adapter del transport.
+
+### Lo que NO cambia con la migración a broker
+
+- El patrón **lean event + pull on demand** (§5.5) se mantiene: el broker entrega solo `{torneoId, partidoId}`; MS4 sigue consultando MS2 vía `/internal/` para los datos completos.
+- La convención `/internal/` (§3.5) sigue válida porque el pull HTTP es independiente del push.
+- El monolito modular MS2+MS3 (§1-§7) no se ve afectado en absoluto.
+
+---
+
+## 11. Conclusión
 
 > "El mejor momento para separar microservicios es cuando el costo de NO separarlos supera al costo de hacerlo. Hoy ese costo no se ha cruzado, y forzar la separación temprana es un anti-patrón llamado *premature distribution*."
 
@@ -367,11 +550,21 @@ Cuando el contexto cambie, el camino de migración está pre-trazado. Mientras t
 
 ---
 
-## 11. Referencias
+## 12. Referencias
 
 - Newman, S. *Monolith to Microservices*. O'Reilly, 2019. Cap. 3: *"Splitting the Monolith"*, sec. *"Component-based decomposition"*.
-- Newman, S. *Building Microservices*, 2nd ed. O'Reilly, 2021. Cap. 2: *"Modelling Microservices"*, sec. *"Modular Monoliths as a stepping stone"*.
+- Newman, S. *Building Microservices*, 2nd ed. O'Reilly, 2021. Cap. 2: *"Modelling Microservices"*, sec. *"Modular Monoliths as a stepping stone"*. Cap. 4: *"Microservice Communication Styles"* sobre `request-response` vs `event-driven`.
 - Vernon, V. *Implementing Domain-Driven Design*. Addison-Wesley, 2013. Cap. 14: *"Application"*, sobre bounded contexts dentro de un mismo proceso.
 - Fowler, M. *MonolithFirst* (artículo, martinfowler.com). 2015.
-- Documento interno: `modelo_despliegue.md` §9 — Estrategia de 3 Supabases.
+- Richardson, C. *Microservices Patterns*. Manning, 2018. Cap. 3: *"Interprocess communication"* sobre el patrón **lean event + pull on demand** y compromisos del transport HTTP vs broker.
+- Documento interno: `modelo_despliegue.md` §9 — Estrategia de 3 Supabases (actualizar a 4 con la BD de MS4).
 - Documento interno: `evolucion_y_decisiones_supercopa.md` §7, §11 — Decisiones relacionadas en este repo.
+- Documento interno: `AnalyticsCodeCup/plan_ms4.md` — Sprint 1 de MS4 que materializa los patrones de §5.4 y §5.5.
+
+---
+
+## Changelog
+
+- **2026-06-XX (2)** — Agregado ejemplo concreto del patrón §5.5 para premios: MS2 dueño + MS4 proyección de lectura. Incluye el callback inverso MS4 → MS2 al cerrar torneo (calcula y persiste ganadores automáticos). Documenta la rectificación de `contexto_ms4.md` que decía "premios viven en MS4".
+- **2026-06-XX** — Incorporación de MS4 (Analytics): agregada §3.5 (convención `/internal/`), §5.4 (MS2→MS4 webhook), §5.5 (MS4→MS2 pull), §5.6 (auth service-to-service), §10 (evolución a broker). Actualizada fila de MS4 en §8 con la aclaración sobre escrituras en data derivada.
+- **2026-05-XX** — Versión inicial. MS2+MS3 monolito modular justificado.

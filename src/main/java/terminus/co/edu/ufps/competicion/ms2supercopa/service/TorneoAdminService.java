@@ -7,20 +7,28 @@ import org.springframework.transaction.annotation.Transactional;
 import terminus.co.edu.ufps.competicion.exception.ResourceNotFoundException;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.TorneoDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.CrearTorneoRequest;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.GuardarConfigRequest;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionDTO;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.TorneoConfigDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EquipoTorneo;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoInscripcion;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoPartido;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.EstadoTorneo;
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.FaseTorneo;
+import terminus.co.edu.ufps.competicion.ms2supercopa.model.FormatoTorneo;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.Partido;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.Torneo;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.EquipoTorneoRepository;
+import terminus.co.edu.ufps.competicion.ms2supercopa.repository.EventoPartidoRepository;
+import terminus.co.edu.ufps.competicion.ms2supercopa.repository.PartidoJugadorRepository;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.PartidoRepository;
 import terminus.co.edu.ufps.competicion.ms2supercopa.repository.TorneoRepository;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +37,8 @@ public class TorneoAdminService {
     private final TorneoRepository torneoRepo;
     private final EquipoTorneoRepository equipoTorneoRepo;
     private final PartidoRepository partidoRepo;
+    private final PartidoJugadorRepository partidoJugadorRepo;
+    private final EventoPartidoRepository eventoPartidoRepo;
 
     @Transactional
     public TorneoDTO crear(CrearTorneoRequest req) {
@@ -44,6 +54,7 @@ public class TorneoAdminService {
                 .estado(EstadoTorneo.BORRADOR)
                 .fechaInicio(req.getFechaInicio())
                 .fechaFin(req.getFechaFin())
+                .repechaje(false)
                 .build();
         torneoRepo.save(torneo);
         return toDTO(torneo);
@@ -64,6 +75,9 @@ public class TorneoAdminService {
         if (torneo.getEstado() != EstadoTorneo.BORRADOR) {
             throw new RuntimeException("Solo se puede publicar un torneo en estado BORRADOR.");
         }
+        if (torneo.getFormato() == null) {
+            throw new RuntimeException("El torneo no tiene formato configurado. Configuralo antes de publicar.");
+        }
         torneo.setEstado(EstadoTorneo.PUBLICADO);
         torneo.setPublicadoEn(LocalDateTime.now());
         torneoRepo.save(torneo);
@@ -81,6 +95,122 @@ public class TorneoAdminService {
         torneoRepo.save(torneo);
         return toDTO(torneo);
     }
+
+    // ── Configuracion de formato ──────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public TorneoConfigDTO obtenerConfiguracion(UUID torneoId) {
+        var torneo = torneoRepo.findById(torneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Torneo no encontrado."));
+        return toConfigDTO(torneo);
+    }
+
+    @Transactional
+    public TorneoConfigDTO guardarConfiguracion(UUID torneoId, GuardarConfigRequest req) {
+        var torneo = torneoRepo.findById(torneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Torneo no encontrado."));
+
+        var bloqueo = motivoBloqueoFormato(torneo);
+        if (bloqueo != null) {
+            throw new RuntimeException(bloqueo);
+        }
+
+        FormatoTorneo formato = parseFormato(req.getFormato());
+        boolean repechaje = Boolean.TRUE.equals(req.getRepechaje());
+        Integer numGrupos = req.getNumGrupos();
+        Integer clasifican = req.getClasificanPorGrupo();
+        List<String> rondas = req.getRondasPlayoff() == null ? List.of() : req.getRondasPlayoff();
+
+        // Validaciones por formato
+        switch (formato) {
+            case LIGA -> {
+                numGrupos = null;
+                clasifican = null;
+                repechaje = false;
+                rondas = List.of();
+            }
+            case ELIMINACION_DIRECTA -> {
+                numGrupos = null;
+                clasifican = null;
+                repechaje = false;
+                if (rondas.isEmpty()) {
+                    throw new RuntimeException("Eliminacion directa requiere al menos una ronda (FINAL).");
+                }
+                validarRondas(rondas);
+            }
+            case GRUPOS_ELIMINATORIAS -> {
+                if (numGrupos == null || numGrupos < 2 || numGrupos > 4) {
+                    throw new RuntimeException("Grupos+Eliminatorias requiere entre 2 y 4 grupos.");
+                }
+                if (clasifican == null || clasifican < 1) {
+                    throw new RuntimeException("Define cuantos equipos clasifican por grupo.");
+                }
+                repechaje = false;
+                if (rondas.isEmpty()) {
+                    throw new RuntimeException("Grupos+Eliminatorias requiere al menos una ronda eliminatoria.");
+                }
+                validarRondas(rondas);
+            }
+            case CHAMPIONS -> {
+                if (numGrupos == null || numGrupos < 2 || numGrupos > 4) {
+                    throw new RuntimeException("Champions requiere entre 2 y 4 grupos.");
+                }
+                if (clasifican == null || clasifican < 1) {
+                    throw new RuntimeException("Define cuantos equipos clasifican por grupo.");
+                }
+                if (rondas.isEmpty()) {
+                    throw new RuntimeException("Champions requiere al menos una ronda eliminatoria.");
+                }
+                validarRondas(rondas);
+            }
+        }
+
+        torneo.setFormato(formato);
+        torneo.setNumGrupos(numGrupos);
+        torneo.setClasificanPorGrupo(clasifican);
+        torneo.setRepechaje(repechaje);
+        torneo.setRondasPlayoff(rondas.isEmpty() ? null : String.join(",", rondas));
+        torneo.setConfiguradoEn(LocalDateTime.now());
+        torneoRepo.save(torneo);
+        return toConfigDTO(torneo);
+    }
+
+    @Transactional
+    public void borrarFixture(UUID torneoId) {
+        torneoRepo.findById(torneoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Torneo no encontrado."));
+        if (partidoRepo.existsByTorneoIdAndEstado(torneoId, EstadoPartido.FINALIZADO)
+                || partidoRepo.existsByTorneoIdAndEstado(torneoId, EstadoPartido.WO)
+                || partidoRepo.existsByTorneoIdAndEstado(torneoId, EstadoPartido.EN_CURSO)) {
+            throw new RuntimeException(
+                "No se puede borrar el fixture: ya hay partidos jugados o en curso.");
+        }
+        var partidos = partidoRepo.findByTorneoId(torneoId);
+
+        // 1) Limpiar tablas hijas: eventos del partido y alineacion (partido_jugador).
+        //    Si no se borran primero, los FK *_partido_id_fkey impiden borrar partidos.
+        //    Aunque el guard de arriba bloquea partidos jugados, en PROGRAMADO/APLAZADO/DESCANSO
+        //    si pueden existir alineaciones precargadas por el admin o quedar resagos al expulsar
+        //    un equipo (HU16), que tambien hay que limpiar.
+        for (Partido p : partidos) {
+            var eventos = eventoPartidoRepo.findByPartidoIdOrderByOrdenAsc(p.getId());
+            if (!eventos.isEmpty()) eventoPartidoRepo.deleteAll(eventos);
+            var alineacion = partidoJugadorRepo.findByPartidoId(p.getId());
+            if (!alineacion.isEmpty()) partidoJugadorRepo.deleteAll(alineacion);
+        }
+
+        // 2) Romper auto-referencias del bracket antes de borrar (siguiente_partido_id).
+        for (Partido p : partidos) {
+            p.setSiguientePartido(null);
+            p.setSiguienteSlot(null);
+        }
+        partidoRepo.saveAll(partidos);
+
+        // 3) Borrar los partidos.
+        partidoRepo.deleteAll(partidos);
+    }
+
+    // ── Inscripciones (sin cambios) ──────────────────────────────
 
     @Transactional(readOnly = true)
     public List<InscripcionDTO> listarInscripciones(UUID torneoId) {
@@ -114,8 +244,6 @@ public class TorneoAdminService {
     @Transactional
     public InscripcionDTO rechazarInscripcion(UUID torneoId, UUID equipoTorneoId, String motivo) {
         var et = cargarInscripcion(torneoId, equipoTorneoId);
-        // Rechazar SOLO aplica a inscripciones pre-pago. Para sacar a un equipo ya aprobado,
-        // el flujo correcto es expulsar (motivo separado, va a 'Torneos', no a 'Pagos').
         if (et.getEstadoInscripcion() != EstadoInscripcion.PENDIENTE_PAGO) {
             if (et.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO) {
                 return toInscripcionDTO(et);
@@ -161,8 +289,6 @@ public class TorneoAdminService {
         et.setMotivoExpulsion(motivo.trim());
         equipoTorneoRepo.save(et);
 
-        // Sus partidos pendientes (no jugados) pasan a DESCANSO: no se juegan, no suman puntos
-        // ni goles al rival. Los partidos ya FINALIZADO/WO se conservan con sus stats intactas.
         List<Partido> pendientes = partidoRepo.findByEquipoTorneoYEstadoIn(
                 torneoId, equipoTorneoId,
                 List.of(EstadoPartido.PROGRAMADO, EstadoPartido.APLAZADO));
@@ -181,6 +307,94 @@ public class TorneoAdminService {
             throw new RuntimeException("La inscripcion no pertenece a ese torneo.");
         }
         return et;
+    }
+
+    // ── Validaciones de bloqueo y mapeos ──────────────────────────
+
+    private String motivoBloqueoFormato(Torneo t) {
+        if (t.getEstado() == EstadoTorneo.FINALIZADO) {
+            return "El torneo esta FINALIZADO; el formato es inmutable.";
+        }
+        // El formato sigue editable mientras NO existan partidos. Asi un admin que
+        // descubre un error de configuracion al intentar generar el fixture puede
+        // volver atras y corregirlo. En cuanto hay un solo partido en BD, el formato
+        // queda bloqueado para evitar inconsistencias.
+        if (partidoRepo.existsByTorneoId(t.getId())) {
+            return "El fixture ya fue generado. Borralo antes de cambiar el formato.";
+        }
+        return null;
+    }
+
+    private String motivoBloqueoFixture(Torneo t) {
+        if (t.getEstado() == EstadoTorneo.FINALIZADO) {
+            return "El torneo esta FINALIZADO.";
+        }
+        if (partidoRepo.existsByTorneoIdAndEstado(t.getId(), EstadoPartido.FINALIZADO)
+                || partidoRepo.existsByTorneoIdAndEstado(t.getId(), EstadoPartido.WO)
+                || partidoRepo.existsByTorneoIdAndEstado(t.getId(), EstadoPartido.EN_CURSO)) {
+            return "Hay partidos jugados o en curso; regenerar borraria su historial.";
+        }
+        return null;
+    }
+
+    private FormatoTorneo parseFormato(String s) {
+        if (s == null || s.isBlank()) {
+            throw new RuntimeException("El formato es obligatorio.");
+        }
+        try {
+            return FormatoTorneo.valueOf(s);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Formato invalido: " + s);
+        }
+    }
+
+    private void validarRondas(List<String> rondas) {
+        for (String r : rondas) {
+            try {
+                FaseTorneo f = FaseTorneo.valueOf(r);
+                if (f == FaseTorneo.GRUPOS) {
+                    throw new RuntimeException("GRUPOS no es una ronda eliminatoria valida.");
+                }
+            } catch (IllegalArgumentException e) {
+                throw new RuntimeException("Ronda invalida: " + r);
+            }
+        }
+    }
+
+    public TorneoConfigDTO toConfigDTO(Torneo t) {
+        int aprobados = equipoTorneoRepo.findByTorneoIdAndEstadoInscripcionOrderByFechaInscripcionAsc(
+                t.getId(), EstadoInscripcion.APROBADO).size();
+        boolean fixture = partidoRepo.existsByTorneoId(t.getId());
+        boolean jugado = partidoRepo.existsByTorneoIdAndEstado(t.getId(), EstadoPartido.FINALIZADO)
+                || partidoRepo.existsByTorneoIdAndEstado(t.getId(), EstadoPartido.WO)
+                || partidoRepo.existsByTorneoIdAndEstado(t.getId(), EstadoPartido.EN_CURSO);
+        String bloqFormato = motivoBloqueoFormato(t);
+        String bloqFixture = motivoBloqueoFixture(t);
+
+        List<String> rondas = (t.getRondasPlayoff() == null || t.getRondasPlayoff().isBlank())
+                ? List.of()
+                : Arrays.stream(t.getRondasPlayoff().split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList());
+
+        return TorneoConfigDTO.builder()
+                .torneoId(t.getId())
+                .torneoNombre(t.getNombre())
+                .estado(t.getEstado() != null ? t.getEstado().name() : null)
+                .formato(t.getFormato() != null ? t.getFormato().name() : null)
+                .numGrupos(t.getNumGrupos())
+                .clasificanPorGrupo(t.getClasificanPorGrupo())
+                .repechaje(t.getRepechaje())
+                .rondasPlayoff(rondas)
+                .equiposAprobados(aprobados)
+                .fixtureGenerado(fixture)
+                .hayPartidoJugado(jugado)
+                .formatoEditable(bloqFormato == null)
+                .fixtureRegenerable(bloqFixture == null)
+                .motivoBloqueoFormato(bloqFormato)
+                .motivoBloqueoFixture(bloqFixture)
+                .build();
     }
 
     public InscripcionDTO toInscripcionDTO(EquipoTorneo et) {
@@ -210,6 +424,7 @@ public class TorneoAdminService {
                 .fechaInicio(t.getFechaInicio())
                 .fechaFin(t.getFechaFin())
                 .publicadoEn(t.getPublicadoEn())
+                .formato(t.getFormato() != null ? t.getFormato().name() : null)
                 .build();
     }
 }

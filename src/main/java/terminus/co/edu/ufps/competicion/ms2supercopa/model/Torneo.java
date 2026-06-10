@@ -43,4 +43,24 @@ public class Torneo {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "formato", length = 30)
+    private FormatoTorneo formato;
+
+    @Column(name = "num_grupos")
+    private Integer numGrupos;
+
+    @Column(name = "clasifican_por_grupo")
+    private Integer clasificanPorGrupo;
+
+    @Builder.Default
+    @Column(name = "repechaje", nullable = false)
+    private Boolean repechaje = false;
+
+    @Column(name = "rondas_playoff", length = 200)
+    private String rondasPlayoff;
+
+    @Column(name = "configurado_en")
+    private LocalDateTime configuradoEn;
 }

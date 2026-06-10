@@ -25,6 +25,8 @@ public class PartidoAdminService {
     private final EquipoTorneoRepository equipoTorneoRepo;
     private final JugadorEquipoRepository jugadorEquipoRepo;
     private final Ms1JugadoresClient ms1Client;
+    private final FixtureService fixtureService;
+    private final BracketAutoFillService bracketAutoFillService;
 
     @Transactional(readOnly = true)
     public List<PartidoAdminDTO> listarPorTorneo(UUID torneoId) {
@@ -145,6 +147,39 @@ public class PartidoAdminService {
         asegurarParticipantes(partido, partido.getEquipoVisitanteTorneo());
         partido.setEstado(EstadoPartido.FINALIZADO);
         partidoRepo.save(partido);
+
+        // Auto-avance en bracket eliminatorio
+        if (partido.getSiguientePartido() != null
+                && partido.getEquipoLocalTorneo() != null
+                && partido.getEquipoVisitanteTorneo() != null) {
+            long golesLocal = eventoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+                    partido.getId(), partido.getEquipoLocalTorneo().getId(), TipoEvento.GOL);
+            long golesVisitante = eventoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+                    partido.getId(), partido.getEquipoVisitanteTorneo().getId(), TipoEvento.GOL);
+            EquipoTorneo ganador = null;
+            if (golesLocal > golesVisitante) {
+                ganador = partido.getEquipoLocalTorneo();
+            } else if (golesVisitante > golesLocal) {
+                ganador = partido.getEquipoVisitanteTorneo();
+            }
+            if (ganador != null) {
+                fixtureService.avanzarGanador(partido, ganador);
+            }
+        }
+
+        // Si el partido que se cierra es de fase GRUPOS, intentar poblar el bracket.
+        // Try/catch defensivo: si falla, no rompe el cierre del partido.
+        if (partido.getFase() == terminus.co.edu.ufps.competicion.ms2supercopa.model.FaseTorneo.GRUPOS
+                && partido.getTorneo() != null) {
+            try {
+                bracketAutoFillService.poblarSiFaseGruposCompleta(partido.getTorneo().getId());
+            } catch (Exception ex) {
+                org.slf4j.LoggerFactory.getLogger(PartidoAdminService.class)
+                        .error("Auto-fill bracket fallo para torneo {}: {}",
+                                partido.getTorneo().getId(), ex.getMessage(), ex);
+            }
+        }
+
         return toPartidoDTO(partido);
     }
 
@@ -337,20 +372,23 @@ public class PartidoAdminService {
     public PartidoAdminDTO toPartidoDTO(Partido p) {
         var local = p.getEquipoLocalTorneo();
         var visitante = p.getEquipoVisitanteTorneo();
-        long golesLocal = eventoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+        long golesLocal = local == null ? 0 : eventoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
                 p.getId(), local.getId(), TipoEvento.GOL);
-        long golesVisitante = eventoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
+        long golesVisitante = visitante == null ? 0 : eventoRepo.countByPartidoIdAndEquipoTorneoIdAndTipoEvento(
                 p.getId(), visitante.getId(), TipoEvento.GOL);
         return PartidoAdminDTO.builder()
                 .id(p.getId())
                 .fecha(p.getFecha())
                 .estado(p.getEstado().name())
-                .localEquipoTorneoId(local.getId())
-                .localNombre(local.getEquipo().getNombre())
-                .visitanteEquipoTorneoId(visitante.getId())
-                .visitanteNombre(visitante.getEquipo().getNombre())
+                .localEquipoTorneoId(local != null ? local.getId() : null)
+                .localNombre(local != null ? local.getEquipo().getNombre() : null)
+                .visitanteEquipoTorneoId(visitante != null ? visitante.getId() : null)
+                .visitanteNombre(visitante != null ? visitante.getEquipo().getNombre() : null)
                 .golesLocal((int) golesLocal)
                 .golesVisitante((int) golesVisitante)
+                .fase(p.getFase() != null ? p.getFase().name() : null)
+                .jornada(p.getJornada())
+                .grupo(p.getGrupo())
                 .build();
     }
 

@@ -4,9 +4,13 @@ import lombok.RequiredArgsConstructor;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.RechazoRequestDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.TorneoDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.CrearTorneoRequest;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.GuardarConfigRequest;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.InscripcionDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.PartidoAdminDTO;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.PosicionGrupoDTO;
+import terminus.co.edu.ufps.competicion.ms2supercopa.dto.admin.TorneoConfigDTO;
 import terminus.co.edu.ufps.competicion.ms2supercopa.model.Partido;
+import terminus.co.edu.ufps.competicion.ms2supercopa.service.ClasificacionService;
 import terminus.co.edu.ufps.competicion.ms2supercopa.service.FixtureService;
 import terminus.co.edu.ufps.competicion.ms2supercopa.service.PartidoAdminService;
 import terminus.co.edu.ufps.competicion.ms2supercopa.service.TorneoAdminService;
@@ -18,6 +22,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -28,6 +33,7 @@ public class AdminTorneoController {
     private final TorneoAdminService torneoAdminService;
     private final FixtureService fixtureService;
     private final PartidoAdminService partidoAdminService;
+    private final ClasificacionService clasificacionService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -52,6 +58,24 @@ public class AdminTorneoController {
     public ResponseEntity<TorneoDTO> iniciar(@PathVariable UUID torneoId) {
         return ResponseEntity.ok(torneoAdminService.iniciar(torneoId));
     }
+
+    // ── Configuracion de formato ──────────────────────────────────
+
+    @GetMapping("/{torneoId}/configuracion")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<TorneoConfigDTO> obtenerConfiguracion(@PathVariable UUID torneoId) {
+        return ResponseEntity.ok(torneoAdminService.obtenerConfiguracion(torneoId));
+    }
+
+    @PutMapping("/{torneoId}/configuracion")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<TorneoConfigDTO> guardarConfiguracion(
+            @PathVariable UUID torneoId,
+            @RequestBody GuardarConfigRequest req) {
+        return ResponseEntity.ok(torneoAdminService.guardarConfiguracion(torneoId, req));
+    }
+
+    // ── Inscripciones ─────────────────────────────────────────────
 
     @GetMapping("/{torneoId}/inscripciones")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -97,6 +121,8 @@ public class AdminTorneoController {
         return ResponseEntity.ok(torneoAdminService.expulsarEquipo(torneoId, equipoTorneoId, req.getMotivo(), admin));
     }
 
+    // ── Fixture ──────────────────────────────────────────────────
+
     @PostMapping("/{torneoId}/fixture")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<List<PartidoAdminDTO>> generarFixture(@PathVariable UUID torneoId) {
@@ -104,9 +130,22 @@ public class AdminTorneoController {
         return ResponseEntity.ok(creados.stream().map(partidoAdminService::toPartidoDTO).toList());
     }
 
+    @DeleteMapping("/{torneoId}/fixture")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<Void> borrarFixture(@PathVariable UUID torneoId) {
+        torneoAdminService.borrarFixture(torneoId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{torneoId}/partidos")
     @PreAuthorize("hasAnyRole('ADMINISTRADOR','ARBITRO')")
     public ResponseEntity<List<PartidoAdminDTO>> partidos(@PathVariable UUID torneoId) {
         return ResponseEntity.ok(partidoAdminService.listarPorTorneo(torneoId));
+    }
+
+    @GetMapping("/{torneoId}/clasificacion")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR','ARBITRO')")
+    public ResponseEntity<Map<String, List<PosicionGrupoDTO>>> clasificacion(@PathVariable UUID torneoId) {
+        return ResponseEntity.ok(clasificacionService.calcularPorGrupo(torneoId));
     }
 }

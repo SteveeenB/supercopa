@@ -18,4 +18,5 @@ public class TorneoDTO {
     private LocalDate fechaInicio;
     private LocalDate fechaFin;
     private LocalDateTime publicadoEn;
+    private String formato;
 }

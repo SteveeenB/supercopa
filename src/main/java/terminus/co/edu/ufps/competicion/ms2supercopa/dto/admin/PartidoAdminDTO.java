@@ -19,4 +19,8 @@ public class PartidoAdminDTO {
     private String visitanteNombre;
     private Integer golesLocal;
     private Integer golesVisitante;
+
+    private String fase;
+    private Integer jornada;
+    private String grupo;
 }
