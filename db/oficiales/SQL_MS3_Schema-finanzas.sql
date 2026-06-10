@@ -26,5 +26,13 @@ CREATE TABLE finanzas.multas (
   partidos_suspension integer NOT NULL,
   tipo_sancion character varying NOT NULL CHECK (tipo_sancion::text = ANY (ARRAY['AMARILLA'::character varying, 'AZUL'::character varying, 'ROJA'::character varying, 'ACUMULACION_AMARILLAS'::character varying, 'ROJA_DIRECTA'::character varying]::text[])),
   torneo_id uuid NOT NULL,
-  CONSTRAINT multas_pkey PRIMARY KEY (id)
+  partidos_suspension_restantes integer,
+  pagado_por_cedula character varying,
+  partido_pago_id uuid,
+  habilitado_manual boolean NOT NULL DEFAULT false,
+  habilitado_por_cedula character varying,
+  habilitado_en timestamp without time zone,
+  motivo_habilitacion character varying,
+  CONSTRAINT multas_pkey PRIMARY KEY (id),
+  CONSTRAINT multas_partido_pago_id_fkey FOREIGN KEY (partido_pago_id) REFERENCES supercopa.partidos(id)
 );

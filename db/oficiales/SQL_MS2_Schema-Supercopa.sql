@@ -16,6 +16,10 @@ CREATE TABLE supercopa.torneos (
   repechaje boolean NOT NULL DEFAULT false,
   rondas_playoff character varying,
   configurado_en timestamp without time zone,
+  monto_inscripcion numeric,
+  cuenta_destino character varying,
+  banco_destino character varying,
+  titular_cuenta character varying,
   CONSTRAINT torneos_pkey PRIMARY KEY (id)
 );
 CREATE TABLE supercopa.equipos (
@@ -107,6 +111,7 @@ CREATE TABLE supercopa.partidos (
   grupo character varying,
   siguiente_partido_id uuid,
   siguiente_slot character varying CHECK (siguiente_slot IS NULL OR (siguiente_slot::text = ANY (ARRAY['LOCAL'::character varying::text, 'VISITANTE'::character varying::text]))),
+  tipo_cierre character varying CHECK (tipo_cierre IS NULL OR (tipo_cierre::text = ANY (ARRAY['WO'::character varying, 'SIN_PAGO_ARBITRAJE'::character varying]::text[]))),
   CONSTRAINT partidos_pkey PRIMARY KEY (id),
   CONSTRAINT partidos_equipo_local_torneo_id_fkey FOREIGN KEY (equipo_local_torneo_id) REFERENCES supercopa.equipo_torneo(id),
   CONSTRAINT partidos_equipo_visitante_torneo_id_fkey FOREIGN KEY (equipo_visitante_torneo_id) REFERENCES supercopa.equipo_torneo(id),
@@ -175,8 +180,19 @@ CREATE TABLE supercopa.premio_asignado (
   equipo_torneo_id uuid,
   fecha_asignacion timestamp without time zone NOT NULL DEFAULT now(),
   CONSTRAINT premio_asignado_pkey PRIMARY KEY (id),
+  CONSTRAINT premio_asignado_cedula_fkey FOREIGN KEY (cedula) REFERENCES supercopa.jugadores(cedula),
   CONSTRAINT premio_asignado_equipo_torneo_id_fkey FOREIGN KEY (equipo_torneo_id) REFERENCES supercopa.equipo_torneo(id),
   CONSTRAINT premio_asignado_premio_id_fkey FOREIGN KEY (premio_id) REFERENCES supercopa.premio_catalogo(id),
-  CONSTRAINT premio_asignado_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES supercopa.torneos(id),
-  CONSTRAINT premio_asignado_cedula_fkey FOREIGN KEY (cedula) REFERENCES supercopa.jugadores(cedula)
+  CONSTRAINT premio_asignado_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES supercopa.torneos(id)
+);
+CREATE TABLE supercopa.multa_config (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  torneo_id uuid NOT NULL UNIQUE,
+  monto_amarilla numeric NOT NULL DEFAULT 0,
+  monto_azul numeric NOT NULL DEFAULT 0,
+  monto_roja numeric NOT NULL DEFAULT 0,
+  fechas_suspension_roja integer NOT NULL DEFAULT 1,
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  CONSTRAINT multa_config_pkey PRIMARY KEY (id),
+  CONSTRAINT multa_config_torneo_id_fkey FOREIGN KEY (torneo_id) REFERENCES supercopa.torneos(id)
 );
